@@ -1,0 +1,3 @@
+displayName = MultiWorldLib
+author = Megghy
+version = 0.1
