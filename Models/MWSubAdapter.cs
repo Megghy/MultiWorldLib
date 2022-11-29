@@ -11,9 +11,9 @@ using Terraria.Localization;
 
 namespace MultiWorldLib.Models
 {
-    public class MWSubServerAdapter : IMWAdapter
+    public class MWSubAdapter : IMWAdapter
     {
-        public MWSubServerAdapter(MWPlayer plr)
+        public MWSubAdapter(MWPlayer plr)
         {
             Player = plr;
         }
@@ -40,9 +40,10 @@ namespace MultiWorldLib.Models
         }
         public void SendToClient(BinaryReader reader)
         {
-            var length = reader.BaseStream.Length - reader.BaseStream.Position;
-            var data = reader.ReadBytes((int)length);
-            Netplay.Clients[Player.Index]?.Socket.AsyncSend(data, 0, data.Length, null);
+            var postition = reader.BaseStream.Position;
+            reader.BaseStream.Position = 0L;
+            SendToClient(reader.ReadBytes((int)reader.BaseStream.Length));
+            reader.BaseStream.Position = postition;
         }
         #endregion
 

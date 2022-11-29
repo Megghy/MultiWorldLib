@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Models;
 using MultiWorldLib.Modules;
+using MultiWorldLib.Net;
 using Terraria;
 using Terraria.ID;
-using Terraria.IO;
 
 namespace MultiWorldLib
 {
@@ -90,11 +90,11 @@ namespace MultiWorldLib
 #pragma warning restore CS4014 // 由于此调用不会等待，因此在调用完成前将继续执行当前方法
                 await _process.WaitForExitAsync();
 
-                if(_process.ExitCode == 114514)
+                if (_process.ExitCode == 114514)
                 {
                     var world = new MWWorldInfo(name, path);
-                    MultiWorldConfig.Instance.Worlds.Add(world);
-                    MultiWorldConfig.Instance.Save();
+                    MWConfig.Instance.Worlds.Add(world);
+                    MWConfig.Instance.Save();
                     WorldData.Add(world);
 
                     ModMultiWorld.Log.Info($"Successfully created world.");
@@ -175,15 +175,19 @@ namespace MultiWorldLib
 
             ModMultiWorld.Log.Info($"Switching [{plr}] to the world: [{container.WorldConfig.Name} : {container.WorldConfig.WorldFilePath}]");
 
+            MWPacketManager.OnCallEvent(MWEventTypes.PreSwtich, plr); //通知客户端
+
             plr.State = PlayerState.Switching;
             var port = Utils.GetRandomPort();
-            var adapter = new MWMainServerAdapter(port, container);
+            var adapter = new MWHostAdapter(port, container);
             try
             {
                 await adapter.StartAsync();
                 await adapter.TryConnectAsync();
 
                 container.Players.Add(plr);
+
+                MWPacketManager.OnCallEvent(MWEventTypes.PostSwitch, plr); //通知客户端
 
                 #region 设置host服务器中玩家状态
                 plr.Player.active = false; //设为未活动
@@ -212,6 +216,8 @@ namespace MultiWorldLib
             {
                 try
                 {
+                    MWHooks.OnPlayerBackToHost(plr, out _);
+
                     plr.State = PlayerState.Switching;
                     plr.IsSwitchingBack = true;
                     plr.IgnoreSyncInventoryPacket = !keepInventory;
@@ -228,7 +234,7 @@ namespace MultiWorldLib
                         }
                     }
 
-                    plr.SendData(new RawDataBuilder(3)
+                    plr.MWAdapter?.SendToClient(new RawDataBuilder(3)
                         .PackByte((byte)plr.Index)
                         .PackByte((byte)true.GetHashCode())
                         .GetByteData()); //修改玩家slot
@@ -241,7 +247,7 @@ namespace MultiWorldLib
                         NetMessage.SendData(MessageID.SyncPlayer, plr.Index, -1, null, p.whoAmI); //还原其他玩家信息
                     });
                     Main.npc.ForEach(n => NetMessage.SendData(MessageID.SyncNPC, plr.Index, -1, null, n.whoAmI)); //还原npc数据
-                    if (!keepInventory)
+                    if (!MWHooks.OnSync(plr, out _))
                     {
                         plr.Player.SyncCharacterInfo(); //客户端将会同步本地数据
                     }

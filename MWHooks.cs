@@ -5,27 +5,15 @@ using MultiWorldLib.Models;
 
 namespace MultiWorldLib
 {
+    /// <summary>
+    /// These hook will work on HOST server
+    /// </summary>
     public static class MWHooks
     {
         public interface IMWEventArgs
         {
             public MWPlayer Player { get; }
             public bool Handled { get; set; }
-        }
-        public class PlayerJoinEventArgs : IMWEventArgs
-        {
-            public PlayerJoinEventArgs(MWPlayer player, string ip, int port, string version)
-            {
-                Player = player;
-                IP = ip;
-                Port = port;
-                Version = version;
-            }
-            public MWPlayer Player { get; private set; }
-            public string IP { get; private set; }
-            public int Port { get; private set; }
-            public string Version { get; set; }
-            public bool Handled { get; set; } = false;
         }
         public class PlayerBackToHostEventArgs : IMWEventArgs
         {
@@ -49,48 +37,30 @@ namespace MultiWorldLib
             public bool PreSwitch { get; }
             public bool Handled { get; set; } = false;
         }
-        public class ChatEventArgs : IMWEventArgs
+        public class SyncEventArgs : IMWEventArgs
         {
-            public ChatEventArgs(MWPlayer player, string message)
+            public SyncEventArgs(MWPlayer player)
             {
                 Player = player;
-                Message = message;
             }
             public MWPlayer Player { get; private set; }
-            public string Message { get; set; }
             public bool Handled { get; set; } = false;
         }
         public static class HookDelegates
         {
-            public delegate void PlayerJoinEvent(PlayerJoinEventArgs args);
 
             public delegate void PlayerBackToHostEvent(PlayerBackToHostEventArgs args);
 
             public delegate void PreSwitchEvent(SwitchEventArgs args);
 
             public delegate void PostSwitchEvent(SwitchEventArgs args);
-
-            public delegate void ChatEvent(ChatEventArgs args);
+            public delegate void SyncEvent(SyncEventArgs args);
         }
 
-        public static event HookDelegates.PlayerJoinEvent PlayerJoin;
         public static event HookDelegates.PlayerBackToHostEvent PlayerBackToHost;
         public static event HookDelegates.PreSwitchEvent PreSwitch;
         public static event HookDelegates.PostSwitchEvent PostSwitch;
-        public static event HookDelegates.ChatEvent Chat;
-        internal static bool OnPlayerJoin(MWPlayer player, string ip, int port, string version, out PlayerJoinEventArgs args)
-        {
-            args = new(player, ip, port, version);
-            try
-            {
-                PlayerJoin?.Invoke(args);
-            }
-            catch (Exception ex)
-            {
-                ModMultiWorld.Log.Error($"<PlayerJoin> Hook handling failed.{Environment.NewLine}{ex}");
-            }
-            return args.Handled;
-        }
+        public static event HookDelegates.SyncEvent Sync;
         internal static bool OnPlayerBackToHost(MWPlayer player, out PlayerBackToHostEventArgs args)
         {
             args = new(player);
@@ -130,16 +100,16 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        internal static bool OnChat(MWPlayer player, string text, out ChatEventArgs args)
+        internal static bool OnSync(MWPlayer player, out SyncEventArgs args)
         {
-            args = new(player, text);
+            args = new(player);
             try
             {
-                Chat?.Invoke(args);
+                Sync?.Invoke(args);
             }
             catch (Exception ex)
             {
-                ModMultiWorld.Log.Error($"<Chat> Hook handling failed.{Environment.NewLine}{ex}");
+                ModMultiWorld.Log.Error($"<Sync> Hook handling failed.{Environment.NewLine}{ex}");
             }
             return args.Handled;
         }

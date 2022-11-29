@@ -1,19 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
+using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
+using Terraria.ModLoader;
 using Terraria.WorldBuilding;
 
 namespace MultiWorldLib
 {
-    public abstract class BaseMultiWorld : IDisposable
+    /// <summary>
+    /// This show work both on subserver and client
+    /// </summary>
+    public abstract class BaseMultiWorld : DummyMultiWorld, IDisposable
     {
+        public static MWSide Side
+            => ModMultiWorld.WorldSide;
+        public abstract 
         public BaseMultiWorld() { }
-        public abstract IMWClientHandler ClientHandler { get; }
-        public abstract IMWServerHandler ServerHandler { get; }
+
+        public virtual void OnLoad()
+        {
+
+        }
+        public virtual void PostEnter(MWPlayer player)
+        {
+
+        }
+        public virtual void PreEnter(MWPlayer player)
+        {
+
+        }
+        public virtual void OnLeave(MWPlayer player)
+        {
+
+        }
+        public abstract void OnExit();
         public virtual void OnWorldGen(List<GenPass> tasks, ref float totalWeight)
         {
 
         }
-        public abstract void Dispose();
+        void IDisposable.Dispose()
+            => OnExit();
     }
 }

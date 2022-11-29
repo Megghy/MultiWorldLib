@@ -10,19 +10,21 @@ using Terraria.ModLoader;
 
 namespace MultiWorldLib.Net.Packets
 {
-    public class RequestJoinSubServerPacket : IMWPacket<RequestJoinSubServerPacket>
+    public class CallEventPacket : IMWPacket<CallEventPacket>
     {
-        public MWPacketTypes Type => MWPacketTypes.RequestJoinSubServer;
+        public MWPacketTypes Type
+            => MWPacketTypes.CallEvent;
 
+        public MWEventTypes EventType { get; set; }
 
-        public RequestJoinSubServerPacket Read(BinaryReader reader)
+        public void Read(BinaryReader reader)
         {
-            throw new NotImplementedException();
+            EventType = (MWEventTypes)reader.ReadByte();
         }
 
         public void Write(ModPacket packet)
         {
-            throw new NotImplementedException();
+            packet.Write((byte)EventType);
         }
     }
 }

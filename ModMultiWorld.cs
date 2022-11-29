@@ -32,8 +32,9 @@ namespace MultiWorldLib
         public static MWSide WorldSide { get; private set; }
 
         public static Guid Id { get; private set; }
-        public static Type CurrentWorldType { get; private set; }
-        public static BaseMultiWorld CurrentWorld { get; private set; }
+        public static Type? CurrentWorldType
+            => CurrentWorld?.GetType();
+        public static BaseMultiWorld CurrentWorld { get; internal set; }
 
         internal bool _isGenerateWorld = false;
 
@@ -57,7 +58,7 @@ namespace MultiWorldLib
             {
                 WorldSide = MWSide.HostServer;
                 LoadWorldData();
-                Console.WriteLine($"Loaded {MultiWorldConfig.Instance.Worlds.Count} world(s).");
+                Console.WriteLine($"Loaded {MWConfig.Instance.Worlds.Count} world(s).");
             }
             base.Load();
         }
@@ -67,9 +68,7 @@ namespace MultiWorldLib
             {
                 if (!string.IsNullOrEmpty(currentClass) && Assembly.GetExecutingAssembly().GetType(currentClass) is { } excuteType)
                 {
-                    CurrentWorldType = excuteType;
-                    CurrentWorld = (BaseMultiWorld)Activator.CreateInstance(excuteType);
-                    Log.Info($"Subserver loaded, running as <{currentClass}>");
+                    ActiveWorld(excuteType);
                 }
                 else
                     Log.Warn($"Cannot found <{currentClass}>");
@@ -99,10 +98,31 @@ namespace MultiWorldLib
                 }
             }
         }
+        internal static void ActiveWorld(Type type)
+        {
+            if (type is null)
+                throw new ArgumentNullException(nameof(type));
+            if (WorldSide is MWSide.HostServer || type == CurrentWorldType)
+                return;
+
+            var world = (BaseMultiWorld)Activator.CreateInstance(type);
+            if (CurrentWorld is not null)
+            {
+                CurrentWorld.OnExit();
+                var systems = typeof(SystemLoader).GetField("Systems").GetValue(null) as List<ModSystem>;
+                var systemsByMod = typeof(SystemLoader).GetField("SystemsByMod").GetValue(null) as Dictionary<Mod, List<ModSystem>>;
+                systems.Remove(CurrentWorld);
+                systemsByMod[Instance].Remove(CurrentWorld);
+            }
+            CurrentWorld = world;
+            world.RegisterDirect();
+
+            Log.Info($"World class loaded, running as <{type.FullName}>");
+        }
         internal static void LoadWorldData()
         {
             MultiWorldAPI.WorldData.Clear();
-            foreach (var world in MultiWorldConfig.Instance.Worlds)
+            foreach (var world in MWConfig.Instance.Worlds)
             {
                 MultiWorldAPI.WorldData.Add(world.GetData());
             }
@@ -110,9 +130,8 @@ namespace MultiWorldLib
         public override void Unload()
         {
             Instance = null;
-            CurrentWorld.Dispose();
+            CurrentWorld.OnExit();
             CurrentWorld = null;
-            CurrentWorldType = null;
 
             MultiWorldAPI.LoadedWorlds.ForEach(w => w.Stop());
             MultiWorldAPI.LoadedWorlds.Clear();
@@ -145,6 +164,17 @@ namespace MultiWorldLib
                 Environment.Exit(114514);
             }
             base.SaveWorldData(tag);
+        }
+    }
+    public abstract class DummyMultiWorld : ModSystem
+    {
+        protected sealed override void Register()
+        {
+            //Ä¬ÈÏ²»×¢²á
+        }
+        internal void RegisterDirect()
+        {
+            base.Register();
         }
     }
 }

@@ -9,7 +9,7 @@ using Terraria.ModLoader.Config;
 
 namespace MultiWorldLib
 {
-    public class MultiWorldConfig
+    public class MWConfig
     {
         public static string ConfigPath
             => Path.Combine(ConfigManager.ServerModConfigPath, "MultiWorldConfig.json");
@@ -18,17 +18,17 @@ namespace MultiWorldLib
             WriteIndented = true,
             Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
         };
-        private static MultiWorldConfig _oldInstance = new();
-        private static MultiWorldConfig _instance;
-        public static MultiWorldConfig Instance { get { _instance ??= Load(); return _instance; } }
+        private static MWConfig _oldInstance = new();
+        private static MWConfig _instance;
+        public static MWConfig Instance { get { _instance ??= Load(); return _instance; } }
         private static bool _first = true;
-        public static MultiWorldConfig Load()
+        public static MWConfig Load()
         {
             if (File.Exists(ConfigPath))
             {
                 try
                 {
-                    var config = JsonSerializer.Deserialize<MultiWorldConfig>(File.ReadAllText(ConfigPath));
+                    var config = JsonSerializer.Deserialize<MWConfig>(File.ReadAllText(ConfigPath));
                     _oldInstance = config;
                     if (_first)
                         config.Save();
@@ -46,7 +46,7 @@ namespace MultiWorldLib
             }
             else
             {
-                var config = new MultiWorldConfig();
+                var config = new MWConfig();
                 config.Save();
                 return config;
             }

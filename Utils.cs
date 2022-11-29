@@ -1,11 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using MultiWorldLib.Entities;
 using Steamworks;
+using Terraria.ModLoader;
+using XPT.Core.Audio.MP3Sharp.Decoding;
 
 namespace MultiWorldLib
 {
@@ -34,6 +39,18 @@ namespace MultiWorldLib
             {
                 action(item);
             }
+        }
+        public static byte[] ToBytes(this BinaryReader reader)
+        {
+            return ((MemoryStream)reader.BaseStream).GetBuffer();
+        }
+        public static byte[] ToBytes(this ModPacket packet)
+        {
+            var len = (ushort)packet.BaseStream.Position;
+            packet.Seek(0, SeekOrigin.Begin);
+            packet.Write(len);
+            packet.Close();
+            return ((MemoryStream)packet.BaseStream).GetBuffer();
         }
     }
 }

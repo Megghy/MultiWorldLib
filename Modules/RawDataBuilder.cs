@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using MultiWorldLib.Entities;
 using Terraria;
 
-namespace MultiWorldLib
+namespace MultiWorldLib.Modules
 {
     public class RawDataBuilder
     {

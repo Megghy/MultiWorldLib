@@ -1,5 +1,5 @@
-﻿using System;
-using MultiWorldLib.Interfaces;
+﻿using MultiWorldLib.Interfaces;
+using MultiWorldLib.Models;
 using Terraria;
 using Terraria.Localization;
 using Terraria.ModLoader;
@@ -9,8 +9,15 @@ namespace MultiWorldLib.Entities
 {
     public class MWPlayer : ModPlayer
     {
-        public static MWPlayer GetMWPlayer(Player tPlayer)
-            => tPlayer.GetModPlayer<MWPlayer>();
+        public static MWPlayer? Get(Player tPlayer)
+        {
+            var plr = tPlayer?.GetModPlayer<MWPlayer>();
+            if (plr is not null)
+                plr.MWAdapter = ModMultiWorld.WorldSide is MWSide.SubServer
+                       ? new MWSubAdapter(plr)
+                       : new MWDefaultAdapter(plr);
+            return plr;
+        }
         public override string ToString()
             => $"{Player.name} :{State}<{MWAdapter.Player}>";
         public IMWAdapter MWAdapter { get; internal set; }
@@ -58,13 +65,6 @@ namespace MultiWorldLib.Entities
         public void SendErrorMsg(object text)
         {
             SendMsg(text, new Color(195, 83, 83));
-        }
-        public void SendData(byte[] data)
-        {
-            if (data is null)
-                throw new ArgumentNullException(nameof(data));
-            if (ModMultiWorld.WorldSide is not MWSide.Client)
-                Netplay.Clients[Info.Index].Socket.AsyncSend(data, 0, data.Length, Netplay.Clients[Info.Index].ServerWriteCallBack);
         }
         #endregion
 

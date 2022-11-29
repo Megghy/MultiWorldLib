@@ -8,16 +8,16 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
+using MultiWorldLib.Modules;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
-using static Humanizer.In;
 
 namespace MultiWorldLib.Models
 {
-    public class MWMainServerAdapter : IMWAdapter
+    public class MWHostAdapter : IMWAdapter
     {
-        public MWMainServerAdapter(int port, MWContainer container)
+        public MWHostAdapter(int port, MWContainer container)
         {
             _port = port;
             WorldContainer = container;
@@ -76,15 +76,21 @@ namespace MultiWorldLib.Models
 
         public void SendToBrige(BinaryReader reader)
         {
+            var postition = reader.BaseStream.Position;
+            reader.BaseStream.Position = 0L;
             reader.BaseStream.CopyTo(_netStream);
+            reader.BaseStream.Position = postition;
         }
         public void SendToClient(byte[] data)
         {
-            Player.SendData(data);
+            Netplay.Clients[Player.Index].Socket.AsyncSend(data, 0, data.Length, Netplay.Clients[Player.Index].ServerWriteCallBack);
         }
         public void SendToClient(BinaryReader reader)
         {
-            Player.SendData(reader.ReadBytes((int)reader.BaseStream.Length));
+            var postition = reader.BaseStream.Position;
+            reader.BaseStream.Position = 0L;
+            SendToClient(reader.ReadBytes((int)reader.BaseStream.Length));
+            reader.BaseStream.Position = postition;
         }
         #endregion
 
@@ -189,7 +195,7 @@ namespace MultiWorldLib.Models
                         {
                             if (WorldContainer.WorldConfig.SpawnX == -1 || WorldContainer.WorldConfig.SpawnY == -1)
                                 SendToClient(new RawDataBuilder(65)
-                                    .PackByte(new BitsByte())
+                                    .PackByte(0)
                                     .PackInt16((short)Player.Info.Index)
                                     .PackSingle((float)Player.Info.SpawnX * 16)
                                     .PackSingle((float)Player.Info.SpawnY * 16)
@@ -197,7 +203,7 @@ namespace MultiWorldLib.Models
                                     .GetByteData());
                             else
                                 SendToClient(new RawDataBuilder(65)
-                                    .PackByte(new BitsByte())
+                                    .PackByte(0)
                                     .PackInt16((short)Player.Info.Index)
                                     .PackSingle((float)WorldContainer.WorldConfig.SpawnX * 16)
                                     .PackSingle((float)WorldContainer.WorldConfig.SpawnY * 16)

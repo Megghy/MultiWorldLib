@@ -12,7 +12,7 @@ namespace MultiWorldLib.Interfaces
     public interface IMWPacket<T>
     {
         public MWPacketTypes Type { get; }
-        public T Read(BinaryReader reader);
+        public void Read(BinaryReader reader);
         public void Write(ModPacket packet);
     }
 }

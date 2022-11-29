@@ -4,6 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MultiWorldLib.Net
+namespace MultiWorldLib.Entities
 {
+    public enum ActiveSide
+    {
+        Both,
+        Server,
+        Client
+    }
 }
