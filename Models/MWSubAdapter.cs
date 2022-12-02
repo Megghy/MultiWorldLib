@@ -1,17 +1,20 @@
 ﻿using System;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
+using MultiWorldLib.Net;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
+using Terraria.ModLoader;
 
 namespace MultiWorldLib.Models
 {
-    public class MWSubAdapter : IMWAdapter
+    public sealed class MWSubAdapter : IMWAdapter
     {
         public MWSubAdapter(MWPlayer plr)
         {
@@ -40,37 +43,12 @@ namespace MultiWorldLib.Models
         }
         public void SendToClient(BinaryReader reader)
         {
-            var postition = reader.BaseStream.Position;
-            reader.BaseStream.Position = 0L;
-            SendToClient(reader.ReadBytes((int)reader.BaseStream.Length));
-            reader.BaseStream.Position = postition;
+            SendToClient(reader.ToBytes());
         }
         #endregion
 
         public bool OnRecieveVanillaPacket(ref byte messageType, ref BinaryReader reader)
         {
-            switch (messageType)
-            {
-                case MessageID.Hello:
-                    string key = reader.ReadString();
-                    if (key == ModMultiWorld.CONNECTION_KEY)
-                    {
-                        try
-                        {
-                            if(JsonSerializer.Deserialize<ConnectInfo>(reader.ReadString()) is { } connect  //1 connectionInfo
-                                && JsonSerializer.Deserialize<MWWorldInfo>(reader.ReadString()) is { } world) 
-                            {
-
-                            }
-                        }
-                        catch(Exception ex)
-                        {
-                            NetMessage.BootPlayer(Player.Index, NetworkText.FromLiteral($"Invalid conntection data."));
-                            ModMultiWorld.Log.Error(ex);
-                        }
-                    }
-                    break;
-            }
             return false;
         }
     }

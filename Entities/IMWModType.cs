@@ -6,11 +6,7 @@ using System.Threading.Tasks;
 
 namespace MultiWorldLib.Entities
 {
-    public enum MWSide
+    public interface IMWModType<T> where T : BaseMultiWorld
     {
-        MainServer,
-        LocalHost, //todo
-        SubServer,
-        Client
     }
 }

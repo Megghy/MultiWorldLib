@@ -8,7 +8,7 @@ namespace MultiWorldLib.Entities
         public MWSubPlayerInfo()
         {
         }
-        public int Index { get; set; }
+        public ushort Index { get; set; }
         public int SpawnX { get; set; }
         public int SpawnY { get; set; }
     }
@@ -19,7 +19,7 @@ namespace MultiWorldLib.Entities
             _player = plr;
         }
         private readonly MWPlayer _player;
-        public int Index
+        public ushort Index
         {
             get => _player.Index;
             set { }

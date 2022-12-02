@@ -1,9 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Text.Json.Serialization;
+using MultiWorldLib.Entities;
 using Terraria.IO;
 
-namespace MultiWorldLib
+namespace MultiWorldLib.Entities
 {
     public record MWWorldInfo
     {
@@ -12,13 +13,17 @@ namespace MultiWorldLib
             Name = name;
             if (!File.Exists(path))
                 throw new FileNotFoundException($"World file not exist.", path);
+            if (!path.EndsWith(".wld"))
+                throw new FileNotFoundException($"Invalid file: {Path.GetFileName(path)}", path);
             WorldFilePath = path;
             Id = Guid.NewGuid();
-            GetData();
+            Data = GetData();
         }
 
-        public MWWorldInfo GetData()
+        public MWWorldInfo GetDataAndClone()
             => this with { Data = WorldFile.GetAllMetadata(WorldFilePath, false) ?? WorldFileData.FromInvalidWorld(WorldFilePath, false) };
+        public WorldFileData GetData()
+            => WorldFile.GetAllMetadata(WorldFilePath, false) ?? WorldFileData.FromInvalidWorld(WorldFilePath, false);
 
         public Guid Id;
         public string Name;
@@ -26,17 +31,13 @@ namespace MultiWorldLib
         public string Alias = "";
         public string Color = "B6E0DF";
         public bool Visiable = true;
+        public string LoadClass = "";
 
         public int SpawnX = -1;
         public int SpawnY = -1;
         public int MaxPlayer = 200;
 
-        public bool EnableWorldSave = true;
-        public bool EnableSaveOnPlayerLeave = true;
-        public bool EnableDisposeWhenNonPlayer = true;
-        public int DisposeDelaySecond = 60;
-        public bool EnableMobSpawn = true;
-        public bool EnableAutoLoadOnServerStart = false;
+        public MWWorldSetting Settings = new();
 
         [JsonIgnore]
         [Newtonsoft.Json.JsonIgnore]

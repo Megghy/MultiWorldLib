@@ -11,24 +11,19 @@ using Terraria.ModLoader;
 
 namespace MultiWorldLib.Net.Packets
 {
-    public class SetClientWorldClassPacket : IMWPacket<SetClientWorldClassPacket>
+    public class SetClientWorldClassPacket : BaseMWPacket
     {
-        public MWPacketTypes Type
-            => MWPacketTypes.SetClientWorldClass;
-
-        public Type WorldClass { get; set; }
-
-        public void Read(BinaryReader reader)
+        public const string CALLEVENTPACKET_KEY = "MultiWorldLib.SetClientWorldClass";
+        public override string Key
+            => CALLEVENTPACKET_KEY;
+        public string WorldClassName { get; private set; }
+        public override void Read(BinaryReader reader)
         {
-            var className = reader.ReadString();
-            WorldClass = Assembly.GetExecutingAssembly().GetType(className);
+            WorldClassName = reader.ReadString();
         }
-
-        public void Write(ModPacket packet)
+        public override void Write(BinaryWriter writer)
         {
-            if (WorldClass is null)
-                throw new ArgumentNullException(nameof(WorldClass));
-            packet.Write(WorldClass.FullName);
+            writer.Write(WorldClassName);
         }
     }
 }

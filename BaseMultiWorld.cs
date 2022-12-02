@@ -10,35 +10,37 @@ namespace MultiWorldLib
     /// <summary>
     /// This show work both on subserver and client
     /// </summary>
-    public abstract class BaseMultiWorld : DummyMultiWorld, IDisposable
+    public abstract class BaseMultiWorld : IDisposable
     {
-        public static MWSide Side
+        #region Internal Data
+        internal Mod ParentMod;
+        internal List<Type> ContentTypes = new();
+        #endregion
+
+        public static MWSide CurrentSide
             => ModMultiWorld.WorldSide;
-        public abstract 
+        public abstract ActiveSide ActiveSide { get; }
         public BaseMultiWorld() { }
 
-        public virtual void OnLoad()
+        public abstract void OnLoad();
+        public abstract void OnUnload();
+        public virtual void PostEnter(int playerNumber)
         {
 
         }
-        public virtual void PostEnter(MWPlayer player)
+        public virtual void PreEnter(int playerNumber)
         {
 
         }
-        public virtual void PreEnter(MWPlayer player)
+        public virtual void OnLeave(int playerNumber)
         {
 
         }
-        public virtual void OnLeave(MWPlayer player)
-        {
-
-        }
-        public abstract void OnExit();
         public virtual void OnWorldGen(List<GenPass> tasks, ref float totalWeight)
         {
 
         }
         void IDisposable.Dispose()
-            => OnExit();
+            => OnUnload();
     }
 }

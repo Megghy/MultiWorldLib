@@ -1,7 +1,10 @@
 ﻿using System;
 using System.IO;
 using MultiWorldLib.Entities;
+using MultiWorldLib.Interfaces;
 using MultiWorldLib.Models;
+using MultiWorldLib.Net;
+using Terraria.Net.Sockets;
 
 namespace MultiWorldLib
 {
@@ -46,6 +49,17 @@ namespace MultiWorldLib
             public MWPlayer Player { get; private set; }
             public bool Handled { get; set; } = false;
         }
+        /*public class RecieveCustomPacketEventArgs : IMWEventArgs
+        {
+            public RecieveCustomPacketEventArgs(MWPlayer player, BaseMWPacket packet)
+            {
+                Player = player;
+                Packet = packet;
+            }
+            public BaseMWPacket Packet { get; private set; }
+            public MWPlayer Player { get; private set; }
+            public bool Handled { get; set; } = false;
+        }*/
         public static class HookDelegates
         {
 
@@ -55,12 +69,17 @@ namespace MultiWorldLib
 
             public delegate void PostSwitchEvent(SwitchEventArgs args);
             public delegate void SyncEvent(SyncEventArgs args);
+            //public delegate void SendBytesEvent(SendBytesEventArgs args);
+            //public delegate void RecieveCustomPacketEvent(RecieveCustomPacketEventArgs args);
         }
 
+        //public static event HookDelegates.RecieveCustomPacketEvent RecieveCustomPacket;
         public static event HookDelegates.PlayerBackToHostEvent PlayerBackToHost;
         public static event HookDelegates.PreSwitchEvent PreSwitch;
         public static event HookDelegates.PostSwitchEvent PostSwitch;
         public static event HookDelegates.SyncEvent Sync;
+        //public static event HookDelegates.SendBytesEvent SendBytes;
+
         internal static bool OnPlayerBackToHost(MWPlayer player, out PlayerBackToHostEventArgs args)
         {
             args = new(player);
@@ -74,9 +93,9 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        internal static bool OnPreSwitch(MWPlayer player, MWContainer targetServer, out SwitchEventArgs args)
+        internal static bool OnPreSwitch(MWPlayer player, MWContainer targetWorld, out SwitchEventArgs args)
         {
-            args = new(player, targetServer, true);
+            args = new(player, targetWorld, true);
             try
             {
                 PreSwitch?.Invoke(args);
@@ -87,9 +106,9 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        internal static bool OnPostSwitch(MWPlayer player, MWContainer targetServer, out SwitchEventArgs args)
+        internal static bool OnPostSwitch(MWPlayer player, MWContainer targetWorld, out SwitchEventArgs args)
         {
-            args = new(player, targetServer, false);
+            args = new(player, targetWorld, false);
             try
             {
                 PostSwitch?.Invoke(args);
@@ -113,5 +132,18 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
+        /*internal static bool OnRecieveCustomPacket(MWPlayer player, BaseMWPacket reader, out RecieveCustomPacketEventArgs args)
+        {
+            args = new(player, reader);
+            try
+            {
+                RecieveCustomPacket?.Invoke(args);
+            }
+            catch (Exception ex)
+            {
+                ModMultiWorld.Log.Error($"<Sync> Hook handling failed.{Environment.NewLine}{ex}");
+            }
+            return args.Handled;
+        }*/
     }
 }

@@ -3,14 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+using System.Reflection;
 using MultiWorldLib.Entities;
-using Steamworks;
+using Terraria;
 using Terraria.ModLoader;
-using XPT.Core.Audio.MP3Sharp.Decoding;
 
 namespace MultiWorldLib
 {
@@ -28,7 +24,7 @@ namespace MultiWorldLib
 
             return randomPort;
         }
-        public static void ForEach<T>(this IEnumerable<T> array,  Action<T> action)
+        public static void ForEach<T>(this IEnumerable<T> array, Action<T> action)
         {
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
@@ -40,17 +36,53 @@ namespace MultiWorldLib
                 action(item);
             }
         }
-        public static byte[] ToBytes(this BinaryReader reader)
+        public static byte[] ToBytes(this BinaryReader reader, bool keepPos = true)
         {
-            return ((MemoryStream)reader.BaseStream).GetBuffer();
+            var pos = reader.BaseStream.Position;
+            reader.BaseStream.Position = 0L;
+            var len = reader.ReadInt16();
+            reader.BaseStream.Position = 0L;
+            var data = reader.ReadBytes(len);
+            if (keepPos)
+                reader.BaseStream.Position = pos;
+            return data;
         }
+        public static byte[] ToBytes(this BinaryReader reader, int start, int length, bool keepPos = true)
+        {
+            var pos = reader.BaseStream.Position;
+            reader.BaseStream.Position = start;
+            var data = reader.ReadBytes(length);
+            if (keepPos)
+                reader.BaseStream.Position = pos;
+            return data;
+        }
+        private readonly static FieldInfo _modPacketBuf = typeof(ModPacket).GetField("buf", BindingFlags.NonPublic | BindingFlags.Instance);
+        private readonly static MethodInfo _modPacketFinish = typeof(ModPacket).GetMethod("Finish", BindingFlags.NonPublic | BindingFlags.Instance);
         public static byte[] ToBytes(this ModPacket packet)
         {
-            var len = (ushort)packet.BaseStream.Position;
-            packet.Seek(0, SeekOrigin.Begin);
-            packet.Write(len);
-            packet.Close();
-            return ((MemoryStream)packet.BaseStream).GetBuffer();
+            _modPacketFinish.Invoke(packet, Array.Empty<object>());
+            var data = _modPacketBuf.GetValue(packet) as byte[];
+            return data.Take(BitConverter.ToInt16(data, 0)).ToArray();
+        }
+        public static bool IsMWModType(this Type type)
+            => type?.BaseType?.IsGenericType == true
+            && type.BaseType.GetInterface("IMWModType`1") != null
+            && type.BaseType.GetGenericArguments().Any(t => t.BaseType == typeof(BaseMultiWorld));
+
+        public static Type? GetBaseMultiWorldType(this Type type)
+            => type.BaseType?.GetGenericArguments().FirstOrDefault(t => t.BaseType == typeof(BaseMultiWorld));
+        public static MWPlayer GetMWPlayer(this Player player)
+        {
+            var plr = player?.GetModPlayer<MWPlayer>();
+            return plr;
+        }
+        public static MWPlayer GetMWPlayer(this int? playerId)
+        {
+            if (playerId.HasValue && playerId is >= 0 and < 256)
+            {
+                return GetMWPlayer(Main.player[playerId.Value]);
+            }
+            return null;
         }
     }
 }

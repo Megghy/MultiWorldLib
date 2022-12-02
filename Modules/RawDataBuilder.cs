@@ -17,11 +17,8 @@ namespace MultiWorldLib.Modules
         {
             memoryStream = new();
             writer = new(memoryStream);
-            writer.BaseStream.Position = 3L;
-            long position = writer.BaseStream.Position;
             writer.BaseStream.Position = 2L;
             writer.Write((byte)packetType);
-            writer.BaseStream.Position = position;
         }
         public RawDataBuilder SetType(byte type)
         {

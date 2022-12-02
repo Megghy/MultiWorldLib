@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MultiWorldLib.Entities;
+using MultiWorldLib.Models;
 
 namespace MultiWorldLib.Interfaces
 {
@@ -11,9 +12,7 @@ namespace MultiWorldLib.Interfaces
         public MWPlayer Player { get; init; }
         public Task StartAsync(CancellationToken cancel = default);
         public void SendToBrige(byte[] data);
-        public void SendToBrige(BinaryReader reader);
         public void SendToClient(byte[] data);
-        public void SendToClient(BinaryReader reader);
         public bool OnRecieveVanillaPacket(ref byte messageType, ref BinaryReader reader);
     }
 }

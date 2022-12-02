@@ -10,7 +10,7 @@ namespace MultiWorldLib.Entities
     {
         Disconnect,
         NewConnection,
-        ReadyToSwitch,
+        InMainServer,
         Switching,
         RequirePassword, 
         SyncData,

@@ -1,30 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
 using Terraria.ModLoader;
 
 namespace MultiWorldLib.Net.Packets
 {
-    public class CallEventPacket : IMWPacket<CallEventPacket>
+    public class CallEventPacket : BaseMWPacket
     {
-        public MWPacketTypes Type
-            => MWPacketTypes.CallEvent;
-
+        public const string CALLEVENTPACKET_KEY = "MultiWorldLib.CallEvent";
         public MWEventTypes EventType { get; set; }
+        public override string Key
+            => CALLEVENTPACKET_KEY;
 
-        public void Read(BinaryReader reader)
+        public override void Read(BinaryReader reader)
         {
             EventType = (MWEventTypes)reader.ReadByte();
         }
-
-        public void Write(ModPacket packet)
+        public override void Write(BinaryWriter writer)
         {
-            packet.Write((byte)EventType);
+            writer.Write((byte)EventType);
         }
     }
 }

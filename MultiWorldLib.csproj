@@ -9,6 +9,16 @@
     <Nullable>annotations</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Net\Packets\**" />
+    <EmbeddedResource Remove="Net\Packets\**" />
+    <None Remove="Net\Packets\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Models\BaseMWAdapter.cs" />
+    <Compile Remove="Net\BaseMWPacket.cs" />
+    <Compile Remove="Net\DataBrige.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="tModLoader.CodeAssist" Version="0.1.*" />
   </ItemGroup>
 </Project>

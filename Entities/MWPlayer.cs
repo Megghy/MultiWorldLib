@@ -10,17 +10,16 @@ namespace MultiWorldLib.Entities
     public class MWPlayer : ModPlayer
     {
         public static MWPlayer? Get(Player tPlayer)
-        {
-            var plr = tPlayer?.GetModPlayer<MWPlayer>();
-            if (plr is not null)
-                plr.MWAdapter = ModMultiWorld.WorldSide is MWSide.SubServer
-                       ? new MWSubAdapter(plr)
-                       : new MWDefaultAdapter(plr);
-            return plr;
-        }
+            => tPlayer.GetMWPlayer();
         public override string ToString()
-            => $"{Player.name} :{State}<{MWAdapter.Player}>";
-        public IMWAdapter MWAdapter { get; internal set; }
+            => $"{Player?.name} :{State}";
+        private IMWAdapter _worldAdapter;
+        public IMWAdapter? WorldAdapter 
+        {
+            get => _tempAdapter ?? _worldAdapter; 
+            set => _worldAdapter = value;
+        }
+        internal IMWAdapter _tempAdapter;
         public PlayerState State { get; internal set; } = PlayerState.NewConnection;
         public IMWPlayerInfo Info
         {
@@ -37,16 +36,17 @@ namespace MultiWorldLib.Entities
         }
         public bool IsSwitchingBack { get; internal set; } = false;
         public bool IgnoreSyncInventoryPacket { get; internal set; } = false;
+        public new ushort Index
+            => (ushort)(IsInSubWorld && ModMultiWorld.WorldSide == MWSide.MainServer
+                ? Info.Index
+                : Player.whoAmI);
 
         internal MWSubPlayerInfo _subPlayerInfo;
         internal MWHostPlayerInfo _hostPlayerInfo;
 
         public bool IsInSubWorld
-            => MWAdapter is not null || ModMultiWorld.WorldSide == MWSide.SubServer;
-        public int SubIndex
-            => IsInSubWorld
-                ? _subPlayerInfo?.Index ?? -1
-                : -1;
+            => _worldAdapter is not null || ModMultiWorld.WorldSide == MWSide.SubServer || State is PlayerState.InSubServer;
+        public int SubIndex { get; internal set; }
 
         #region 常用功能
         public void SendMsg(object text, Color color = default)
@@ -67,13 +67,5 @@ namespace MultiWorldLib.Entities
             SendMsg(text, new Color(195, 83, 83));
         }
         #endregion
-
-        public override void PreUpdate()
-        {
-            if (ModMultiWorld.WorldSide == MWSide.HostServer && State == PlayerState.InSubServer)
-            {
-            }
-            base.PreUpdate();
-        }
     }
 }

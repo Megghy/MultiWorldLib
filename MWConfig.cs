@@ -67,6 +67,7 @@ namespace MultiWorldLib
         #region cfg
         public bool EnableChatPrefix { get; set; } = true;
         public string ChatPrefixFormat { get; set; } = "[{world.name}] {chat}";
+        public bool UpdateWhenNoPlayerInHost { get; set; } = true;
         #endregion
 
         /// <summary>
