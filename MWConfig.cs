@@ -55,7 +55,7 @@ namespace MultiWorldLib
         {
             _oldInstance = _instance;
             _instance = null;
-            ModMultiWorld.LoadWorldData();
+            MultiWorldManager.LoadWorldData();
         }
         public void Save()
         {

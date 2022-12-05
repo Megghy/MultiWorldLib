@@ -57,12 +57,13 @@ namespace MultiWorldLib
             return data;
         }
         private readonly static FieldInfo _modPacketBuf = typeof(ModPacket).GetField("buf", BindingFlags.NonPublic | BindingFlags.Instance);
+        private readonly static FieldInfo _modPacketLen = typeof(ModPacket).GetField("len", BindingFlags.NonPublic | BindingFlags.Instance);
         private readonly static MethodInfo _modPacketFinish = typeof(ModPacket).GetMethod("Finish", BindingFlags.NonPublic | BindingFlags.Instance);
         public static byte[] ToBytes(this ModPacket packet)
         {
             _modPacketFinish.Invoke(packet, Array.Empty<object>());
-            var data = _modPacketBuf.GetValue(packet) as byte[];
-            return data.Take(BitConverter.ToInt16(data, 0)).ToArray();
+            var data = (_modPacketBuf.GetValue(packet) as byte[]).AsSpan();
+            return data[..BitConverter.ToInt16(data[..2])].ToArray();
         }
         public static bool IsMWModType(this Type type)
             => type?.BaseType?.IsGenericType == true
@@ -83,6 +84,11 @@ namespace MultiWorldLib
                 return GetMWPlayer(Main.player[playerId.Value]);
             }
             return null;
+        }
+
+        public static FieldInfo GetField<T>(string name, BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public)
+        {
+            return typeof(T).GetField(name, flags);
         }
     }
 }

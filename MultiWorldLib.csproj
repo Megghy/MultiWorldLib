@@ -15,7 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Models\BaseMWAdapter.cs" />
-    <Compile Remove="Net\BaseMWPacket.cs" />
     <Compile Remove="Net\DataBrige.cs" />
   </ItemGroup>
   <ItemGroup>

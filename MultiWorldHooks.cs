@@ -1,17 +1,14 @@
 ﻿using System;
 using System.IO;
 using MultiWorldLib.Entities;
-using MultiWorldLib.Interfaces;
 using MultiWorldLib.Models;
-using MultiWorldLib.Net;
-using Terraria.Net.Sockets;
 
 namespace MultiWorldLib
 {
     /// <summary>
     /// These hook will work on HOST server
     /// </summary>
-    public static class MWHooks
+    public static class MultiWorldHooks
     {
         public interface IMWEventArgs
         {
@@ -49,17 +46,20 @@ namespace MultiWorldLib
             public MWPlayer Player { get; private set; }
             public bool Handled { get; set; } = false;
         }
-        /*public class RecieveCustomPacketEventArgs : IMWEventArgs
+        public class RecieveCustomPacketEventArgs : IMWEventArgs
         {
-            public RecieveCustomPacketEventArgs(MWPlayer player, BaseMWPacket packet)
+            public RecieveCustomPacketEventArgs(Guid worldId, BinaryReader reader)
             {
-                Player = player;
-                Packet = packet;
+                Reader = reader;
+                WorldId = worldId;
             }
-            public BaseMWPacket Packet { get; private set; }
+            public BinaryReader Reader { get; private set; }
+            public Guid WorldId { get; private set; }
             public MWPlayer Player { get; private set; }
+            public static MWSide From
+                => ModMultiWorld.WorldSide == MWSide.SubServer ? MWSide.MainServer : MWSide.SubServer;
             public bool Handled { get; set; } = false;
-        }*/
+        }
         public static class HookDelegates
         {
 
@@ -70,10 +70,10 @@ namespace MultiWorldLib
             public delegate void PostSwitchEvent(SwitchEventArgs args);
             public delegate void SyncEvent(SyncEventArgs args);
             //public delegate void SendBytesEvent(SendBytesEventArgs args);
-            //public delegate void RecieveCustomPacketEvent(RecieveCustomPacketEventArgs args);
+            public delegate void RecieveCustomDataEvent(RecieveCustomPacketEventArgs args);
         }
 
-        //public static event HookDelegates.RecieveCustomPacketEvent RecieveCustomPacket;
+        public static event HookDelegates.RecieveCustomDataEvent RecieveCustomPacket;
         public static event HookDelegates.PlayerBackToHostEvent PlayerBackToHost;
         public static event HookDelegates.PreSwitchEvent PreSwitch;
         public static event HookDelegates.PostSwitchEvent PostSwitch;
@@ -132,9 +132,9 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        /*internal static bool OnRecieveCustomPacket(MWPlayer player, BaseMWPacket reader, out RecieveCustomPacketEventArgs args)
+        internal static bool OnRecieveCustomPacket(Guid worldId, BinaryReader reader, out RecieveCustomPacketEventArgs args)
         {
-            args = new(player, reader);
+            args = new(worldId, reader);
             try
             {
                 RecieveCustomPacket?.Invoke(args);
@@ -144,6 +144,6 @@ namespace MultiWorldLib
                 ModMultiWorld.Log.Error($"<Sync> Hook handling failed.{Environment.NewLine}{ex}");
             }
             return args.Handled;
-        }*/
+        }
     }
 }

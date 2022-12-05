@@ -29,11 +29,6 @@ namespace MultiWorldLib.Commands
 
         public override void Action(CommandCaller caller, string input, string[] args)
         {
-            Task.Run(() =>
-            {
-                var world = MultiWorldAPI.CreateSubServer<TESTBASEWORLD>("C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\2692ea8a-314f-4ce8-a114-de31f02b1497.wld");
-                Main.player[0].GetMWPlayer().EnterWorldAsync(world);
-            });
             if (args.Length > 0)
             {
                 switch (args.First().ToLower())
@@ -54,6 +49,14 @@ namespace MultiWorldLib.Commands
                         Main.player[0].GetMWPlayer().BackToMainServer();
                         break;
                 }
+            }
+            else
+            {
+                Task.Run(() =>
+                {
+                    var world = MultiWorldAPI.CreateSubServer<TESTBASEWORLD>("C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\2692ea8a-314f-4ce8-a114-de31f02b1497.wld");
+                    Main.player[0].GetMWPlayer().EnterWorldAsync(world);
+                });
             }
         }
     }

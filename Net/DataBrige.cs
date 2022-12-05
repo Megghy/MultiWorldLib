@@ -1,12 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MultiWorldLib.Interfaces;
 using Terraria.ModLoader;
 using Terraria.ModLoader.Core;
-using tModPorter;
 
 namespace MultiWorldLib.Net
 {
@@ -41,6 +37,17 @@ namespace MultiWorldLib.Net
                 throw new($"CustomPacket: [{name}] already exist.");
             CustomPackets.Add(name, type);
             ModMultiWorld.Log.Info($"Register custom packet with key: {name}");
+        }
+        public static void SendPacket<T>(T packet) where T : BaseMWPacket
+        {
+
+        }
+        public static void SendDataDirect(byte[] data)
+        {
+            if (ModMultiWorld.WorldSide is Entities.MWSide.SubServer)
+            {
+
+            }
         }
     }
 }

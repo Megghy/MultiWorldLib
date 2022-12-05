@@ -1,19 +1,24 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Exceptions;
 using MultiWorldLib.Models;
 using MultiWorldLib.Modules;
 using MultiWorldLib.Net;
 using Terraria;
+using Terraria.GameContent;
+using Terraria.GameContent.Creative;
 using Terraria.ID;
+using Terraria.Localization;
 using Terraria.Map;
 using Terraria.ModLoader;
 
@@ -209,15 +214,19 @@ namespace MultiWorldLib
                 return;
             }
 
-            if (MWHooks.OnPreSwitch(plr, container, out _))
+            if (MultiWorldHooks.OnPreSwitch(plr, container, out _))
                 return;
-            ModMultiWorld.Log.Info($"Switching [{plr}: {plr.Index}] to the world: [{container.WorldConfig.Name} : {container.WorldConfig.WorldFilePath}]");
+            ModMultiWorld.Log.Info($"Switching [{plr}: {plr.WhoAmI}] to the world: [{container.WorldConfig.Name} : {container.WorldConfig.WorldFilePath}]");
 
+            plr._subPlayerInfo = null;
             plr.State = PlayerState.Switching;
             var adapter = new MWMainAdapter(plr, container); ;
             plr._tempAdapter = adapter;
 
             MWNetManager.OnCallEvent(MWEventTypes.PreSwtich, plr); //通知客户端
+            var setClassPacket = MWNetManager.GetMWPacket(MWPacketTypes.SetClientWorldClass);
+            setClassPacket.Write(container.WorldClassType.FullName);
+            plr.SendPakcetToClientPlayer(setClassPacket);
 
             if (!container.IsRunning)
                 container.Start();
@@ -238,7 +247,7 @@ namespace MultiWorldLib
             try
             {
                 var cancel = new CancellationTokenSource(30 * 1000);
-                plr.WorldAdapter = adapter;
+                plr._tempAdapter = adapter;
                 await adapter.StartAsync()
                     .WaitAsync(new TimeSpan(0, 0, 30))
                     .ContinueWith(async task =>
@@ -260,7 +269,7 @@ namespace MultiWorldLib
         private static async Task EnterWorldInternalLocalPlay(MWPlayer plr, MWMainAdapter adapter, MWContainer container)
         {
             var cancel = new CancellationTokenSource(30 * 1000);
-            plr.WorldAdapter = adapter;
+            plr._tempAdapter = adapter;
             await adapter.StartAsync();
 
             Main.SwitchNetMode(NetmodeID.MultiplayerClient);
@@ -281,12 +290,12 @@ namespace MultiWorldLib
             plr._tempAdapter = null;
 
             ModMultiWorld.Log.Info($"[{plr.Player.name}] Joined world: {container.WorldConfig.Name}");
-            MWHooks.OnPostSwitch(plr, container, out _);
+            MultiWorldHooks.OnPostSwitch(plr, container, out _);
             MWNetManager.OnCallEvent(MWEventTypes.PostSwitch, plr); //通知客户端
 
             #region 设置host服务器中玩家状态
             plr.Player.active = false; //设为未活动
-            NetMessage.SendData(MessageID.PlayerActive, -1, plr.Index, null, plr.Index, false.GetHashCode()); //隐藏原服务器中的玩家
+            NetMessage.SendData(MessageID.PlayerActive, -1, plr.WhoAmI, null, plr.WhoAmI, false.GetHashCode()); //隐藏原服务器中的玩家
             #endregion
         }
         #endregion
@@ -299,59 +308,42 @@ namespace MultiWorldLib
         {
             if (plr is null)
                 throw new ArgumentNullException(nameof(plr));
-            if (!plr.IsInSubWorld)
-                return;
+            switch (ModMultiWorld.WorldSide)
+            {
+                case MWSide.Client:
+                    var data = new RawDataBuilder(MessageID.Unused15)
+                            .PackByte((byte)MWCustomTypes.RequestBackToMainServer)
+                            .GetByteData();
+                    Netplay.Connection.Socket.AsyncSend(data, 0, data.Length, Netplay.Connection.ClientWriteCallBack);
+                    return;
+                case MWSide.SubServer:
+                    plr.WorldAdapter.SendToClient(new RawDataBuilder(MessageID.Unused15)
+                            .PackByte((byte)MWCustomTypes.RequestBackToMainServer)
+                            .GetByteData());
+                    return;
+            }
             if (ModMultiWorld.WorldSide is MWSide.MainServer or MWSide.LocalHost)
             {
                 ModMultiWorld.Log.Info($"Send player [{plr.Player.name}] back to main world.");
                 try
                 {
-                    MWHooks.OnPlayerBackToHost(plr, out _);
+                    MultiWorldHooks.OnPlayerBackToHost(plr, out _);
+                    MWNetManager.OnCallEvent(MWEventTypes.PreSwtich, plr);
+                    var setClassPacket = MWNetManager.GetMWPacket(MWPacketTypes.SetClientWorldClass);
+                    setClassPacket.Write("");
+                    plr.SendPakcetToClientPlayer(setClassPacket);
 
+                    plr._subPlayerInfo = null;
                     plr.State = PlayerState.Switching;
                     plr.IsSwitchingBack = true;
                     plr.IgnoreSyncInventoryPacket = !keepInventory;
-
-                    int sectionX = Netplay.GetSectionX(0);
-                    int sectionX2 = Netplay.GetSectionX(Main.maxTilesX);
-                    int sectionX3 = Netplay.GetSectionX(0);
-                    int sectionX4 = Netplay.GetSectionX(Main.maxTilesY);
-                    for (int i = sectionX; i <= sectionX2; i++)
-                    {
-                        for (int j = sectionX3; j <= sectionX4; j++)
-                        {
-                            Netplay.Clients[plr.Index].TileSections[i, j] = false;
-                        }
-                    }
-
-                    plr.WorldAdapter?.SendToClient(new RawDataBuilder(MessageID.PlayerInfo)
-                        .PackByte((byte)plr.Index)
-                        .PackByte((byte)true.GetHashCode())
-                        .GetByteData()); //修改玩家slot
-
-                    Main.player.Where(p => p != null && p.whoAmI != plr.Index)
-                        .ToList()
-                        .ForEach(p =>
-                    {
-                        NetMessage.SendData(MessageID.PlayerActive, plr.Index, -1, null, p.whoAmI, true.GetHashCode());//显示原服务器玩家 
-                        NetMessage.SendData(MessageID.SyncPlayer, plr.Index, -1, null, p.whoAmI); //还原其他玩家信息
-                    });
-                    Main.npc.ForEach(n => NetMessage.SendData(MessageID.SyncNPC, plr.Index, -1, null, n.whoAmI)); //还原npc数据
-                    if (!MWHooks.OnSync(plr, out _))
-                    {
-                        plr.Player.SyncCharacterInfo(); //客户端将会同步本地数据
-                    }
-                    plr.Player.Spawn(PlayerSpawnContext.SpawningIntoWorld);
-                    if (rememberLastPos)
-                    {
-                        plr.Player.Teleport(plr.Player.position);
-                    }
-                    else
-                        plr.Player.Teleport(new(Main.spawnTileX * 16, (Main.spawnTileY - 3) * 16));
-                    NetMessage.SendData(MessageID.WorldData, plr.Index);  //重置ssc状态/发送世界信息
+                    var oldPos = plr.Player.position;
 
                     plr.WorldAdapter?.Dispose();
                     plr.WorldAdapter = null;
+
+                    //MWNetManager._syncModMethod.Invoke(null, new object[] { plr.Index });
+                    NetMessage.SendData(MessageID.PlayerInfo, plr.WhoAmI, -1, null, 0);
 
                     if (ModMultiWorld.WorldSide is MWSide.LocalHost)
                     {

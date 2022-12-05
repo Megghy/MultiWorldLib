@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Exceptions;
+using MultiWorldLib.Models;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
@@ -16,13 +16,13 @@ namespace MultiWorldLib.Net
 {
     public static class MWNetManager
     {
-        private readonly static MethodInfo _syncModMethod = typeof(ModNet).GetMethod("SyncMods", BindingFlags.Static | BindingFlags.NonPublic);
+        internal readonly static MethodInfo _syncModMethod = typeof(ModNet).GetMethod("SyncMods", BindingFlags.Static | BindingFlags.NonPublic);
         internal static bool OnRecieveVanillaPacket(ref byte messageType, ref BinaryReader reader, int playerNumber)
         {
             if (ModMultiWorld.WorldSide is MWSide.SubServer && messageType == MessageID.Hello)
             {
                 string key = reader.ReadString();
-                ModMultiWorld.Log.Debug("recieve connection with key: " + key);
+                ModMultiWorld.Log.Debug("Recieve connection request with key: " + key);
                 if (key == ModMultiWorld.CONNECTION_KEY)
                 {
                     try
@@ -57,21 +57,23 @@ namespace MultiWorldLib.Net
             }
             else
             {
-                if (!Main.dedServ)
-                {
-                    var start = reader.BaseStream.Position -= 3;
-                    var len = reader.ReadInt16();
-                    var data = reader.ToBytes((int)start, len);
-                    ModMultiWorld.Log.Debug($"Recieve: type: {MessageID.GetName(messageType)}{messageType}, len: {data.Length}\r\n{string.Join(" ", data.Select(b => b.ToString()))}");
-
-                }
                 if (playerNumber is > 255 or < 0)
                     return false;
                 if (MWPlayer.Get(Main.player[playerNumber]) is { } plr)
                 {
+                    if (ModMultiWorld.WorldSide is MWSide.SubServer && plr.WorldAdapter is null)
+                        plr.WorldAdapter = new MWSubAdapter(plr);
                     return plr.WorldAdapter?.OnRecieveVanillaPacket(ref messageType, ref reader) ?? false;
                 }
                 return false;
+            }
+        }
+        internal static void OnSendBytes(On.Terraria.Net.Sockets.TcpSocket.orig_Terraria_Net_Sockets_ISocket_AsyncSend orig, TcpSocket self, byte[] data, int offset, int size, SocketSendCallback callback, object state)
+        {
+            if (!(Utils.GetMWPlayer(Netplay.Clients.FirstOrDefault(c => c.Socket == self)?.Id) is { } plr
+                && plr.State > PlayerState.InMainServer)) //如果在其他服忽略所有
+            {
+                orig(self, data, offset, size, callback, state);
             }
         }
         internal static void OnRecievePacket(BinaryReader reader, int playerNumber)
@@ -93,23 +95,22 @@ namespace MultiWorldLib.Net
                                             $"Name: {Main.worldName}, " +
                                             $"Id: {Main.worldID}, " +
                                             $"UniqueId: {(Main.ActiveWorldFileData.UseGuidAsMapName ? Main.ActiveWorldFileData.UniqueId : "[OFF]")}");
-                                    if(ModMultiWorld.WorldSide is MWSide.Client)
+                                    if (ModMultiWorld.WorldSide is MWSide.Client)
                                     {
-                                        Main.Map.Clear();
-                                        Main.menuMode = 14;
+                                        Netplay.Connection.State = 1;
                                     }
                                     break;
                                 case MWEventTypes.PostSwitch:
                                     ModMultiWorld.CurrentWorld?.PostEnter(playerNumber);
+                                    //ModMultiWorld.Log.Info($"[{Main.player[playerNumber].name}] Successfully join world: {Main.worldName}");
                                     if (ModMultiWorld.WorldSide is MWSide.Client)
                                     {
+                                        Main.Map.Clear();
                                         Main.Map.Load();
-                                        ModMultiWorld.Log.Info($"Successfully join world: {Main.worldName}");
                                         ModMultiWorld.Log.Debug($"<PostEnter> WorldInfo - " +
                                             $"Name: {Main.worldName}, " +
                                             $"Id: {Main.worldID}, " +
                                             $"UniqueId: {(Main.ActiveWorldFileData.UseGuidAsMapName ? Main.ActiveWorldFileData.UniqueId : "[OFF]")}");
-                                        Main.menuMode = 0;
                                     }
                                     break;
                                 case MWEventTypes.Leave:
@@ -125,8 +126,7 @@ namespace MultiWorldLib.Net
                         if (ModMultiWorld.WorldSide is MWSide.Client)
                         {
                             //WorldGen.clearWorld();
-                            Netplay.Connection.State = 3;
-                            ModMultiWorld.ActiveWorld(className);
+                            MultiWorldManager.ActiveWorld(className);
                             ModMultiWorld.Log.Debug($"WorldReset - " +
                                 $"Name: {Main.worldName}, " +
                                 $"Id: {Main.worldID}, " +
@@ -141,19 +141,10 @@ namespace MultiWorldLib.Net
                 plr.WorldAdapter?.SendToBrige(reader.ToBytes(false));
             }
         }
-        internal static void OnSendBytes(On.Terraria.Net.Sockets.TcpSocket.orig_Terraria_Net_Sockets_ISocket_AsyncSend orig, TcpSocket self, byte[] data, int offset, int size, SocketSendCallback callback, object state)
-        {
-            if(!(ModMultiWorld.WorldSide is MWSide.MainServer
-                && Utils.GetMWPlayer(Netplay.Clients.FirstOrDefault(c => c.Socket == self)?.Id) is { } plr
-                && plr.State > PlayerState.InMainServer)) //如果在其他服忽略所有
-            {
-                orig(self, data, offset, size, callback, state);
-            }
-        }
 
-        private static ConstructorInfo _modPacketConstructor = typeof(ModPacket).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).First();
-        private static FieldInfo _modPacketNetId = typeof(ModPacket).GetField("netID", BindingFlags.NonPublic | BindingFlags.Instance);
-        public static ModPacket GetMWPacket(MWPacketTypes type)
+        private static readonly ConstructorInfo _modPacketConstructor = typeof(ModPacket).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).First();
+        private static readonly FieldInfo _modPacketNetId = typeof(ModPacket).GetField("netID", BindingFlags.NonPublic | BindingFlags.Instance);
+        internal static ModPacket GetMWPacket(MWPacketTypes type)
         {
             ModPacket packet;
             try
@@ -162,15 +153,19 @@ namespace MultiWorldLib.Net
             }
             catch
             {
-                packet = (ModPacket)_modPacketConstructor.Invoke(new object[] { 250, 261 });
+                packet = (ModPacket)_modPacketConstructor.Invoke(new object[] { 250, 10 });
                 packet.Write((byte)0);
                 _modPacketNetId.SetValue(packet, 0);
             }
             packet.Write((byte)type);
             return packet;
         }
+        internal static MultiWorldPacket GetMultiWorldPacket(string? key = null)
+        {
+            return new MultiWorldPacket(key);
+        }
 
-        internal static void SendPakcetToClient(this MWPlayer plr, ModPacket packet)
+        internal static void SendPakcetToClientPlayer(this MWPlayer plr, ModPacket packet)
         {
             if (packet is null)
                 throw new ArgumentNullException(nameof(packet));
@@ -189,7 +184,7 @@ namespace MultiWorldLib.Net
             else
                 plr.WorldAdapter?.SendToClient(packet.ToBytes());
         }
-        internal static void SendPakcetToBrige(this MWPlayer plr, ModPacket packet)
+        internal static void SendPakcetToBrigePlayer(this MWPlayer plr, ModPacket packet)
         {
             if (packet is null)
                 throw new ArgumentNullException(nameof(packet));
@@ -208,8 +203,37 @@ namespace MultiWorldLib.Net
             var packet = GetMWPacket(MWPacketTypes.CallEvent);
             packet.Write((byte)type);
 
-            plr.SendPakcetToClient(packet);
-            plr.SendPakcetToBrige(packet);
+            plr.SendPakcetToClientPlayer(packet);
+            plr.SendPakcetToBrigePlayer(packet);
+        }
+
+        internal static void OnRecieveData(Guid worldId, int length, byte[] data)
+        {
+            if (data.Length > 2)
+            {
+                using var reader = new BinaryReader(new MemoryStream(data, 0, length));
+                var ns = reader.ReadString();
+                MultiWorldHooks.OnRecieveCustomPacket(worldId, reader, out var args);
+                if (ModMultiWorld.CurrentWorld?.Namespace == ns)
+                    ModMultiWorld.CurrentWorld.OnRecieveCustomPacket(args);
+            }
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="packet"></param>
+        /// <exception cref="WrongSideException">Called method from wrong side</exception>
+        public static void SendCustomDataToBridge(MultiWorldPacket packet)
+        {
+            ThrowHelper.CheckSide(MWSide.SubServer);
+
+            SendCustomDataToBridgeDirect(packet.GetBytes());
+        }
+        public static void SendCustomDataToBridgeDirect(byte[] data)
+        {
+            ThrowHelper.CheckSide(MWSide.SubServer);
+
+            ModMultiWorld.Instance._pipeClient.Send(data);
         }
     }
 }

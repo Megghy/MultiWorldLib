@@ -9,7 +9,7 @@
     "TerrariaServer": {
       "commandName": "Executable",
       "executablePath": "dotnet",
-      "commandLineArgs": "$(tMLServerPath)",
+      "commandLineArgs": "$(tMLServerPath) -world C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\5c98d76b-86b0-4c70-96ad-b9e990441948.wld -port 7777",
       "workingDirectory": "$(tMLSteamPath)"
     }
   }

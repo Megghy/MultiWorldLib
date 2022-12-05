@@ -17,7 +17,7 @@ namespace MultiWorldLib.Entities
         public IMWAdapter? WorldAdapter 
         {
             get => _tempAdapter ?? _worldAdapter; 
-            set => _worldAdapter = value;
+            internal set => _worldAdapter = value;
         }
         internal IMWAdapter _tempAdapter;
         public PlayerState State { get; internal set; } = PlayerState.NewConnection;
@@ -25,7 +25,7 @@ namespace MultiWorldLib.Entities
         {
             get
             {
-                if (IsInSubWorld)
+                if (State > PlayerState.InMainServer)
                 {
                     _subPlayerInfo ??= new();
                     return _subPlayerInfo;
@@ -36,9 +36,9 @@ namespace MultiWorldLib.Entities
         }
         public bool IsSwitchingBack { get; internal set; } = false;
         public bool IgnoreSyncInventoryPacket { get; internal set; } = false;
-        public new ushort Index
+        public ushort WhoAmI
             => (ushort)(IsInSubWorld && ModMultiWorld.WorldSide == MWSide.MainServer
-                ? Info.Index
+                ? Info.WhoAmI
                 : Player.whoAmI);
 
         internal MWSubPlayerInfo _subPlayerInfo;
@@ -52,7 +52,7 @@ namespace MultiWorldLib.Entities
         public void SendMsg(object text, Color color = default)
         {
             color = color == default ? new Color(212, 239, 245) : color;
-            Terraria.Chat.ChatHelper.SendChatMessageToClient(NetworkText.FromLiteral(text.ToString()), color, Info.Index);
+            Terraria.Chat.ChatHelper.SendChatMessageToClient(NetworkText.FromLiteral(text.ToString()), color, Info.WhoAmI);
         }
         public void SendSuccessMsg(object text)
         {

@@ -39,7 +39,7 @@ namespace MultiWorldLib.Models
         {
             if (data is null)
                 throw new ArgumentNullException(nameof(data));
-            Netplay.Clients[Player.Index]?.Socket.AsyncSend(data, 0, data.Length, null);
+            Netplay.Clients[Player.WhoAmI]?.Socket.AsyncSend(data, 0, data.Length, null);
         }
         public void SendToClient(BinaryReader reader)
         {

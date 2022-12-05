@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -18,7 +19,7 @@ using Terraria.Net.Sockets;
 
 namespace MultiWorldLib.Models
 {
-    public sealed class MWMainAdapter : IMWAdapter
+    public class MWMainAdapter : IMWAdapter
     {
         private readonly static FieldInfo _clientConnection = typeof(TcpSocket).GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic);
         public MWMainAdapter(MWPlayer plr, MWContainer container)
@@ -26,7 +27,7 @@ namespace MultiWorldLib.Models
             World = container;
             _tcpClient = new TcpClient();
             Player = plr;
-            _vanillaTcpClient = (TcpClient)_clientConnection.GetValue(Netplay.Clients[plr.Index].Socket);
+            _vanillaTcpClient = (TcpClient)_clientConnection.GetValue(Netplay.Clients[plr.WhoAmI].Socket);
         }
         private bool _isRunning = false;
         private bool _isEntered = false;
@@ -63,13 +64,13 @@ namespace MultiWorldLib.Models
 #pragma warning disable CS4014 // 由于此调用不会等待，因此在调用完成前将继续执行当前方法
             Task.Factory.StartNew(RecieveLoop);
 #pragma warning restore CS4014 // 由于此调用不会等待，因此在调用完成前将继续执行当前方法
-            ModMultiWorld.Log.Debug($"Send Hello packet with index: {Player?.Index}");
+            ModMultiWorld.Log.Debug($"Send Hello packet with index: {Player?.WhoAmI}");
             SendToBrigeDirect(new RawDataBuilder(1)
                             .PackString(ModMultiWorld.CONNECTION_KEY) //key
                             .PackString(JsonSerializer.Serialize(new ConnectInfo()
                             {
                                 SubServerId = World.Id,
-                                IP = Netplay.Clients[Player?.Index ?? 255]?.Socket.GetRemoteAddress().ToString() ?? "127.0.0.1"
+                                IP = Netplay.Clients[Player?.WhoAmI ?? 255]?.Socket.GetRemoteAddress().ToString() ?? "127.0.0.1"
                             }))
                             .PackString(JsonSerializer.Serialize(World?.WorldConfig?.Settings))
                             .GetByteData()); //发起连接请求
@@ -84,6 +85,7 @@ namespace MultiWorldLib.Models
             _isRunning = false;
             _tcpClient?.Dispose();
             _vanillaTcpClient = null;
+            _fixdCheckedBuf = null;
         }
 
         #region Send
@@ -96,6 +98,8 @@ namespace MultiWorldLib.Models
         }
         public void SendToBrigeDirect(byte[] data)
         {
+            if (!_isRunning)
+                return;
             var messageType = data[2];
             try
             {
@@ -120,9 +124,7 @@ namespace MultiWorldLib.Models
         }
         public void SendToClient(Span<byte> data)
         {
-            ModMultiWorld.Log.Debug($"[Host] Send to CLIENT: type: {MessageID.GetName(data[2])}{data[2]}, len: {data.Length}\r\n{string.Join(" ", data.ToArray())}");
-
-            _vanillaTcpClient.GetStream().Write(data);
+            _vanillaTcpClient?.GetStream()?.Write(data);
         }
         public void SendToClient(byte[] data)
         {
@@ -149,6 +151,7 @@ namespace MultiWorldLib.Models
                 ModMultiWorld.Log.Warn($"Host recieve packet error: {ex}");
             }
         }
+        private byte[] _fixdCheckedBuf = new byte[MessageBuffer.readBufferMax];
         void CheckBuffer(int size, Span<byte> buf)
         {
             if (size <= 0)
@@ -157,7 +160,7 @@ namespace MultiWorldLib.Models
             if (size > length)
             {
                 var checkedPos = 0;
-                Span<byte> _checkedBuf = stackalloc byte[MessageBuffer.readBufferMax];
+                Span<byte> _checkedBuf = new(_fixdCheckedBuf);
                 var tempPos = 0;
                 while (tempPos < size)
                 {
@@ -173,17 +176,21 @@ namespace MultiWorldLib.Models
                 }
                 if (checkedPos > 0)
                     SendToClient(buf[..checkedPos]);
+                _checkedBuf.Clear();
             }
             else if (!OnRecieveVanillaPacketFromSubServer(buf[..size]))
                 SendToClient(buf[..size]);
-
-            //Netplay.Clients[Player.Index].Socket.AsyncSend(buf, 0, checkedPosition, Netplay.Clients[Player.Index].ServerWriteCallBack);
-
         }
         public bool OnRecieveVanillaPacket(ref byte messageType, ref BinaryReader reader)
         {
+            if (!_tcpClient.Connected)
+                return true;
+            var start = reader.BaseStream.Position -= 3;
             switch (messageType)
             {
+                case MessageID.Unused15:
+                    OnRecieveCustomData(reader, true);
+                    break;
                 case MessageID.SyncEquipment:
                     if (Player.IgnoreSyncInventoryPacket)
                     {
@@ -191,9 +198,10 @@ namespace MultiWorldLib.Models
                     }
                     break;
             }
-            var start = reader.BaseStream.Position -= 3;
+            reader.BaseStream.Position = start;
             var len = reader.ReadInt16();
-            SendToBrigeDirect(reader.ToBytes((int)start, len));
+            if (start >= 0 && len > 2)
+                SendToBrigeDirect(reader.ToBytes((int)start, len));
             return true;
         }
         public bool OnRecieveVanillaPacketFromSubServer(Span<byte> buf)
@@ -203,17 +211,33 @@ namespace MultiWorldLib.Models
             else
                 return OnRecieveVanillaPacketFromSubServerLocalPlay(buf);
         }
+        private void OnRecieveCustomData(BinaryReader reader, bool fromClient)
+        {
+            var type = (MWCustomTypes)reader.ReadByte();
+            switch (type)
+            {
+                case MWCustomTypes.RequestBackToMainServer:
+                    MultiWorldAPI.BackToMainServer(Player);
+                    break;
+            }
+        }
         private bool OnRecieveVanillaPacketFromSubServerMultiPlay(Span<byte> buf)
         {
             switch (buf[2])
             {
+                case MessageID.Unused15:
+                    {
+                        using var customReader = new BinaryReader(new MemoryStream(buf[3..].ToArray()));
+                        OnRecieveCustomData(customReader, false);
+                    }
+                    break;
                 case MessageID.Kick: //kick
                     Dispose();
                     using (var reader = new BinaryReader(new MemoryStream(buf.ToArray(), 0, buf.Length)))
                     {
                         reader.BaseStream.Position = 3L;
                         var reason = NetworkText.Deserialize(reader);
-                        Terraria.Chat.ChatHelper.SendChatMessageToClient(reason, Color.Orange, Player.Index);
+                        Terraria.Chat.ChatHelper.SendChatMessageToClient(reason, Color.Orange, Player.WhoAmI);
                         ModMultiWorld.Log.Info($"{Player.Player.name} kicked from {World}, reason: {reason}");
                         MultiWorldAPI.BackToMainServer(Player);
                         return true;
@@ -225,37 +249,6 @@ namespace MultiWorldLib.Models
                 case MessageID.WorldData:
                     Player.Info.SpawnX = BitConverter.ToInt16(buf.Slice(13, 2));
                     Player.Info.SpawnY = BitConverter.ToInt16(buf.Slice(15, 2)) - 3;
-                    if (!_isEntered)
-                    {
-                        ModMultiWorld.Log.Debug($"{Player.Player.name} recieve packet WorldData<7>, default spawn point: {Player.Info.SpawnX} - {Player.Info.SpawnY}");
-
-                        var setClassPacket = MWNetManager.GetMWPacket(MWPacketTypes.SetClientWorldClass);
-                        setClassPacket.Write(World.WorldClassType.FullName);
-                        Player.SendPakcetToClient(setClassPacket);
-
-                        int x, y;
-                        if (World.WorldConfig.SpawnX == -1 || World.WorldConfig.SpawnY == -1)
-                        {
-                            x = Player.Info.SpawnX;
-                            y = Player.Info.SpawnY;
-                        }
-                        else
-                        {
-                            x = World.WorldConfig.SpawnX;
-                            y = World.WorldConfig.SpawnY;
-                        }
-                        SendToBrigeDirect(new RawDataBuilder(MessageID.SpawnTileData)
-                        .PackInt32(x)
-                        .PackInt32(y)
-                        .GetByteData());
-                        SendToBrigeDirect(new RawDataBuilder(MessageID.PlayerSpawn)
-                            .PackByte((byte)Player.SubIndex) //player slot 
-                            .PackInt16((short)x) //default spawn
-                            .PackInt16((short)y)
-                            .PackInt32(0) //?
-                            .PackByte(1)
-                            .GetByteData());
-                    }
                     break;
                 case MessageID.RequestPassword:
                     if (Player.State == PlayerState.InSubServer)

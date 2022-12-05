@@ -2,8 +2,12 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Exceptions;
+using MultiWorldLib.Net;
+using MultiWorldLib.Net.MultiWorld.Net;
 using Terraria;
 
 namespace MultiWorldLib.Models
@@ -26,6 +30,12 @@ namespace MultiWorldLib.Models
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
 
             port ??= Utils.GetRandomPort();
+
+            WorldClassType = type;
+            Id = Guid.NewGuid();
+            StartupParams = @params;
+            Port = port.Value;
+
             _process = new()
             {
                 StartInfo = new()
@@ -34,8 +44,9 @@ namespace MultiWorldLib.Models
                     Arguments = $"tModLoader.dll " +
                         $"-server " +
                         $"-world \"{config.WorldFilePath}\" " +
-                        $"-port \"{port.Value}\" " +
+                        $"-port {port.Value} " +
                         $"{ModMultiWorld.PARAM_IS_SUBSERVER} " +
+                        $"{ModMultiWorld.PARAM_ID} \"{Id}\" " +
                         $"{ModMultiWorld.PARAM_CLASSNAME} {type?.FullName} ",
                     //CreateNoWindow = true,
                 }
@@ -48,11 +59,8 @@ namespace MultiWorldLib.Models
                 _process.StartInfo.Arguments += string.Join(' ', @params.Select(kv => $"{kv.Key} {kv.Value}"));
 
             _process.Exited += OnProcessExit;
-
-            WorldClassType = type;
-            Id = Guid.NewGuid();
-            StarupParams = @params;
-            Port = port.Value;
+            _pipeline = new($"{ModMultiWorld.PIPE_PREFIX}.{Id}");
+            _pipeline.RecieveDataEvent += RecieveCustomDataInternal;
 
             config.LoadClass = type?.FullName;
             if (save)
@@ -65,7 +73,13 @@ namespace MultiWorldLib.Models
             WorldConfig = config;
         }
 
-        private readonly Process _process;        
+        private void RecieveCustomDataInternal(int length, byte[] data)
+        {
+            MWNetManager.OnRecieveData(Id, length, data);
+        }
+
+        private readonly Process _process;
+        private readonly SimplePipeServer _pipeline;
 
         public Guid Id { get; init; }
         public int Port { get; init; }
@@ -73,13 +87,16 @@ namespace MultiWorldLib.Models
         public List<MWPlayer> Players { get; private set; } = new();
         public MWWorldInfo WorldConfig { get; internal set; }
         public Type? WorldClassType { get; init; }
-        public IReadOnlyDictionary<string, string> StarupParams { get; init; }
+        public IReadOnlyDictionary<string, string> StartupParams { get; init; }
 
         public void Start()
         {
             if (IsRunning)
                 return;
             _process.Start();
+            ModMultiWorld.Log.Info($"Start pipeServer for: {Id}");
+            _pipeline.StartWithoutWait();
+
             IsRunning = true;
         }
         public void Stop()
@@ -95,6 +112,20 @@ namespace MultiWorldLib.Models
             _process?.StandardInput?.Close();
             _process?.Kill();
             _process?.Dispose();
+            _pipeline.RecieveDataEvent -= RecieveCustomDataInternal;
+            _pipeline.Dispose();
         }
+
+        #region
+        public delegate void OnRecieveData(byte[] data);
+        public void SendCustomData(MultiWorldPacket packet)
+        {
+            SendDataDirect(packet.GetBytes());
+        }
+        public void SendDataDirect(byte[] data)
+        {
+            _pipeline.Send(data);
+        }
+        #endregion
     }
 }

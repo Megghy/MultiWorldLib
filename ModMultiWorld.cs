@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using log4net;
+using MultiWorld.Net;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Net;
 using Terraria;
+using Terraria.Localization;
 using Terraria.ModLoader;
 using Terraria.ModLoader.Core;
 using Terraria.ModLoader.IO;
@@ -23,6 +25,11 @@ namespace MultiWorldLib
         public const string PARAM_IS_GEN = "-multiworld_gen";
 
         public const string CONNECTION_KEY = "tModLoader_MultiWorld";
+
+        public const string PIPE_PREFIX = "MultiWorld.Pipes";
+
+        public const string NETMESSAGE_IGNORE = "MultiWorld.IgnoreNetMessageSend";
+        public const string DEFAULT_WORLD_NAME = "__DefaultWorld__";
         #endregion
 
         public static ModMultiWorld Instance { get; private set; }
@@ -34,7 +41,11 @@ namespace MultiWorldLib
             => Instance._id;
         public static Type? CurrentWorldType
             => CurrentWorld?.GetType();
-        public static BaseMultiWorld CurrentWorld
+        public static string? CurrentWorldFullName
+            => CurrentWorld?.FullName;
+        public static string? CurrentWorldName
+            => CurrentWorld?.Name;
+        public static BaseMultiWorld? CurrentWorld
             => Instance._currentWorld;
 
         private MWSide _worldSide;
@@ -42,7 +53,7 @@ namespace MultiWorldLib
         public BaseMultiWorld _currentWorld { get; internal set; }
         internal bool _isGenerateWorld = false;
         internal readonly List<MWWorldTypeInfo> _worlds = new();
-
+        internal SimplePipeClient _pipeClient;
         public override void Load()
         {
             Instance = this;
@@ -67,10 +78,21 @@ namespace MultiWorldLib
             //DataBridge.Init();
 
             FindMultiWorldTypes();
-            LoadWorldData();
+            MultiWorldManager.LoadWorldData();
             LoadParams();
             RegisterDefaultContent();
-            On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend += MWNetManager.OnSendBytes;
+
+            switch (WorldSide)
+            {
+                case MWSide.SubServer:
+                    Log.Info($"Start pipeClient for: {Id}");
+                    _pipeClient.Start();
+                    _pipeClient.RecieveDataEvent += OnSubServerRecieveData;
+                    break;
+                case MWSide.MainServer:
+                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend += MWNetManager.OnSendBytes;
+                    break;
+            }
 
             Log.Info($"Loaded {MWConfig.Instance.Worlds.Count} world(s).");
             base.Load();
@@ -81,41 +103,70 @@ namespace MultiWorldLib
             Instance._currentWorld = null;
             //_mwPatcher.UnpatchAll();
             Instance = null;
-            On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend -= MWNetManager.OnSendBytes;
-
-            //DataBridge.Dispose();
-
-            if (WorldSide is MWSide.MainServer)
+            switch (WorldSide)
             {
-                MultiWorldAPI.LoadedWorlds.ForEach(w => w.Stop());
-                MultiWorldAPI.LoadedWorlds.Clear();
+                case MWSide.SubServer:
+                    _pipeClient.Dispose();
+                    _pipeClient.RecieveDataEvent -= OnSubServerRecieveData;
+                    break;
+                case MWSide.MainServer:
+                    MultiWorldAPI.LoadedWorlds.ForEach(w => w.Stop());
+                    MultiWorldAPI.LoadedWorlds.Clear();
+                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend -= MWNetManager.OnSendBytes;
+                    break;
             }
 
             base.Unload();
+        }
+        private void OnSubServerRecieveData(int length, byte[] data)
+        {
+            MWNetManager.OnRecieveData(Id, length, data);
         }
         private void FindMultiWorldTypes()
         {
             foreach (var mod in ModLoader.Mods)
             {
                 var allTypes = AssemblyManager.GetLoadableTypes(mod.Code);
-                var worldTypes = allTypes.Where(t => t.BaseType == typeof(BaseMultiWorld));
-                worldTypes.ForEach(baseWorldType =>
+                var worldTypes = allTypes.Where(t => t.IsAssignableTo(typeof(BaseMultiWorld)) && !t.IsAbstract);
+                var allWeakContentType = allTypes.Where(t => !t.IsAbstract
+                    && t.GetInterfaces() is { Length: > 1 } interfaces
+                    && interfaces.Any(i => i.Name == "IMWWeakModType`1")
+                    && interfaces.Contains(typeof(ILoadable)))
+                    .ToDictionary(t => t, t =>
+                    {
+                        dynamic obj = (Activator.CreateInstance(t));
+                        return (string[])obj.AttachTo;
+                    });
+                var allContentType = allTypes.Where(t => !t.IsAbstract
+                    && t.GetInterfaces() is { Length: > 1 } interfaces
+                    && interfaces.Any(i => i.Name == "IMWModType`2")
+                    && interfaces.Contains(typeof(ILoadable)))
+                    .ToDictionary(t => t, t => t.GetInterface(typeof(IMWModType<,>).Name).GetGenericArguments().First(t => t.BaseType == typeof(BaseMultiWorld)).FullName);
+                foreach (var baseWorldType in worldTypes)
                 {
                     Log.Info($"Find multiworld: {baseWorldType.FullName}");
 
+                    var worldClassName = baseWorldType.FullName;
                     var worldContent = new List<Type>();
-                    allTypes.Where(t => t.BaseType?.IsGenericType == true && t.BaseType.GetInterface("IMWModType`1") != null && t.BaseType.GetGenericArguments().Any(t => t == baseWorldType))
-                        .ForEach(t =>
+                    foreach (var weakType in allWeakContentType)
+                    {
+                        if (weakType.Value.Contains(worldClassName))
                         {
-                            if (t.BaseType?.BaseType is { } originModType && originModType.GetMethod("Register", BindingFlags.NonPublic | BindingFlags.Instance) is { } origin)
-                            {
-                                worldContent.Add(originModType);
-                                Log.Info($"- Find world content: {t.FullName}");
-                            }
-                        });
+                            worldContent.Add(weakType.Key);
+                            Log.Info($"- Find weakContent: {weakType.Key.FullName}");
+                        }
+                    }
+                    foreach (var type in allContentType)
+                    {
+                        if (type.Value == worldClassName)
+                        {
+                            worldContent.Add(type.Key);
+                            Log.Info($"- Find content: {type.Key.FullName}");
+                        }
+                    }
 
                     _worlds.Add(new(baseWorldType, mod, worldContent));
-                });
+                }
             }
 
         }
@@ -146,7 +197,7 @@ namespace MultiWorldLib
             {
                 if (!string.IsNullOrEmpty(currentClass))
                 {
-                    ActiveWorld(currentClass);
+                    currentClass.Split(',').ForEach(c => MultiWorldManager.ActiveWorld(c));
                 }
                 else
                     Log.Warn($"Cannot found world class <{currentClass}>, running as default world.");
@@ -156,9 +207,10 @@ namespace MultiWorldLib
                 if (gen == "true")
                     _isGenerateWorld = true;
             }
-            if (Program.LaunchParameters.TryGetValue(PARAM_IS_GEN, out var id) && Guid.TryParse(id, out var guidId))
+            if (Program.LaunchParameters.TryGetValue(PARAM_ID, out var id) && Guid.TryParse(id, out var guidId))
             {
                 _id = guidId;
+                _pipeClient = new($"{PIPE_PREFIX}.{id}");
             }
             if (Program.LaunchParameters.TryGetValue("evil", out var evil))
             {
@@ -176,74 +228,6 @@ namespace MultiWorldLib
                 }
             }
         }
-        internal static void ActiveWorld(string className)
-        {
-            if (!string.IsNullOrEmpty(className)
-                && Instance._worlds.Find(w => w.BaseType.FullName == className) is { } worldInfo)
-            {
-                var type = worldInfo.BaseType;
-                if (WorldSide is MWSide.MainServer || type == CurrentWorldType)
-                    return;
-
-                var world = (BaseMultiWorld)Activator.CreateInstance(type);
-                if ((world.ActiveSide is ActiveSide.Client && WorldSide is MWSide.SubServer)
-                    || (world.ActiveSide is ActiveSide.Server && WorldSide is MWSide.Client))
-                {
-                    Log.Warn($"Class: {type.FullName} can ONLY load on {world.ActiveSide}");
-                    world.OnUnload();
-                    return;
-                }
-                if (CurrentWorld is not null)
-                {
-                    UnloadWorld(CurrentWorld);
-                }
-                Instance._currentWorld = world;
-                world.ParentMod = worldInfo.ParentMod;
-                world.ContentTypes = worldInfo.ModContents;
-                world.OnLoad();
-                var contents = world.ParentMod.GetContent();
-                LoaderUtils.ForEachAndAggregateExceptions(AssemblyManager.GetLoadableTypes(world.ParentMod.Code).Where(t => t.IsMWModType()).OrderBy(type => type.FullName),
-                    t =>
-                    {
-                        if (!contents.Any(c => c.GetType() == t))
-                            world.ParentMod.AddContent((ILoadable)Activator.CreateInstance(t, nonPublic: true));
-                        else
-                            Log.Warn($"Content: [{t.FullName}] has loaded and could not be load again, ignoring.");
-                    });
-
-                Log.Info($"World class loaded, running as <{type.FullName}>");
-            }
-            else
-                Log.Warn($"Cannot found world class <{className}>.");
-        }
-        internal static void LoadWorldData()
-        {
-            MultiWorldAPI.WorldData.Clear();
-            foreach (var world in MWConfig.Instance.Worlds)
-            {
-                MultiWorldAPI.WorldData.Add(world.GetDataAndClone());
-            }
-        }
-        public static void UnloadWorld(BaseMultiWorld world)
-        {
-            world.OnUnload();
-
-            var modSystemsByMod = typeof(SystemLoader).GetField("SystemsByMod", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null) as Dictionary<Mod, List<ModSystem>>;
-            if (modSystemsByMod.TryGetValue(world.ParentMod, out var modSystems))
-            {
-                modSystems.Where(s => world.ContentTypes.Contains(s.GetType())).ToList().ForEach(s =>
-                {
-                    modSystems.Remove(s);
-                    s.Unload();
-                });
-            }
-            var modContents = typeof(Mod).GetField("content", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(world.ParentMod) as IList<ILoadable>;
-            modContents.Where(c => world.ContentTypes.Contains(c.GetType())).ToList().ForEach(c =>
-            {
-                modContents.Remove(c);
-                c.Unload();
-            });
-        }
         public override void HandlePacket(BinaryReader reader, int whoAmI)
         {
             MWNetManager.OnRecievePacket(reader, whoAmI);
@@ -254,6 +238,10 @@ namespace MultiWorldLib
         public override bool HijackGetData(ref byte messageType, ref BinaryReader reader, int playerNumber)
         {
             return MWNetManager.OnRecieveVanillaPacket(ref messageType, ref reader, playerNumber);
+        }
+        public override bool HijackSendData(int whoAmI, int msgType, int remoteClient, int ignoreClient, NetworkText text, int number, float number2, float number3, float number4, int number5, int number6, int number7)
+        {
+            return base.HijackSendData(whoAmI, msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
         }
         public override void ModifyWorldGenTasks(List<GenPass> tasks, ref float totalWeight)
         {
