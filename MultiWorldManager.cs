@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Mono.Cecil.Cil;
 using MultiWorldLib.Entities;
+using Terraria;
 using Terraria.ModLoader;
 using Terraria.ModLoader.Core;
 using static MultiWorldLib.ModMultiWorld;
@@ -14,17 +15,23 @@ namespace MultiWorldLib
     {
         internal static void UnloadWorld(BaseMultiWorld world)
         {
+            if (world is null)
+                return;
             world.OnUnload();
 
             #region Unload content
-            var loaders = typeof(LoaderManager).GetField("loadersByType", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(null) as Dictionary<Type, ILoader>;
+            //获取所有注册的loader
+            var loaders = typeof(LoaderManager).GetField("loadersByType", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<Type, ILoader>;
             foreach (var loader in loaders)
             {
+                //只检查泛型loader的情况
                 if(loader.Key.BaseType?.GenericTypeArguments?.FirstOrDefault() is { } loaderType)
                 {
+                    var loadedList = loader.Key.GetField("list", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(loader.Value) as List<dynamic>; //获取Loader<T>中储存的content
                     world.Content.Where(c => loaderType.IsAssignableFrom(c.Key))
                         .ForEach(c =>
                         {
+                            //获取泛型静态类实例中的content
                             var dict = typeof(ModTypeLookup<>).MakeGenericType(loaderType)
                                 .GetField("dict", BindingFlags.NonPublic | BindingFlags.Static)
                                 .GetValue(null) as Dictionary<string, dynamic>;
@@ -41,10 +48,11 @@ namespace MultiWorldLib
                             void Unload(IModType instance, string name, string fullName)
                             {
                                 dict.Remove(fullName);
-                                if (tieredDict.TryGetValue(((IModType)instance).Mod?.Name ?? "Terraria", out var value))
+                                if (tieredDict.TryGetValue(instance.Mod?.Name ?? "Terraria", out var value))
                                 {
                                     value.Remove(name);
                                 }
+                                loadedList.Remove(instance); 
                             }
                         });
                 }
@@ -63,6 +71,25 @@ namespace MultiWorldLib
                         s.Unload();
                     });
             }
+            var systemHookLists = typeof(SystemLoader).GetFields(BindingFlags.NonPublic | BindingFlags.Static).Where(p => p.FieldType.Name == "HookList");
+            foreach (var item in systemHookLists)
+            {
+                var hookList = item.GetValue(null);
+                var tempSystemsField = hookList.GetType().GetField("arr");
+                var tempSystems = tempSystemsField.GetValue(hookList) as ModSystem[];
+                tempSystemsField.SetValue(hookList, tempSystems.Where(t => !world.Content.ContainsKey(t.GetType())).ToArray());
+            }
+            //ModBiome
+            var biomeSetupMethod = typeof(BiomeLoader).GetMethod("SetupPlayer" , BindingFlags.Instance | BindingFlags.NonPublic);
+            var biome = LoaderManager.Get<BiomeLoader>();
+            foreach (var plr in Main.player)
+            {
+                if(plr != null)
+                {
+                    biomeSetupMethod.Invoke(biome, new object[] { plr }); //重设环境数组
+                }
+            }
+            //UnloadContentInstance(typeof(ContentInstance<ModBiome>));
             #endregion
             var modContents = world.ParentMod.GetContent() as IList<ILoadable>;
             modContents.Where(c => world.Content.ContainsKey(c.GetType()))
@@ -72,24 +99,36 @@ namespace MultiWorldLib
                     modContents.Remove(c);
                     c.Unload();
                 });
+            Log.Info($"World: <{CurrentWorld?.FullName}> Unloaded.");
+        }
+        private static void UnloadContentInstance(Type type)
+        {
+            type.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, null);
+            var instances = type.GetProperty("Instances", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            var types = instances.GetValue(null) as IEnumerable<dynamic>;
+            instances.SetValue(null, types.Where(t => t.GetType() != type).ToArray());
         }
 
         internal static void ActiveWorld(string className)
         {
             try
             {
-                if (className == DEFAULT_WORLD_NAME)
+                if (string.IsNullOrEmpty(className) || className == DEFAULT_WORLD_NAME)
                 {
-                    
+                    UnloadWorld(Instance._currentWorld);
+                    Log.Info($"Default world loaded.");
                 }
-                else if (!string.IsNullOrEmpty(className)
-                && Instance._worlds.Find(w => w.WorldType.FullName == className) is { } worldInfo)
+                else if (Instance._worlds.Find(w => w.WorldType.FullName == className) is { } worldInfo)
                 {
                     var type = worldInfo.WorldType;
                     if (WorldSide is MWSide.MainServer || type == CurrentWorldType)
                         return;
-                    if (Instance._worlds.Exists(w => w.GetType() == type))
+                    if (Instance._currentWorld?.GetType() == type)
+                    {
                         Log.Warn($"World: [{type}] has loaded and could not be load again, ignoring.");
+                        return;
+                    }
 
                     if (Activator.CreateInstance(type) is not BaseMultiWorld world)
                         throw new Exception($"Unablt to create world instance.");
@@ -105,7 +144,7 @@ namespace MultiWorldLib
                         UnloadWorld(Instance._currentWorld);
                     }
                     Instance._currentWorld = world;
-                    Log.Info($"World: [{type.FullName}] loading, loaded world(s): {Instance._worlds.Count}");
+                    Log.Info($"World: [{type.FullName}] loading...");
 
                     world.ParentMod = worldInfo.ParentMod;
                     world.OnLoad();

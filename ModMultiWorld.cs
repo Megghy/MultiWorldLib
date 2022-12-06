@@ -48,7 +48,7 @@ namespace MultiWorldLib
         public static BaseMultiWorld? CurrentWorld
             => Instance._currentWorld;
 
-        private MWSide _worldSide;
+        internal MWSide _worldSide;
         public Guid _id;
         public BaseMultiWorld _currentWorld { get; internal set; }
         internal bool _isGenerateWorld = false;
@@ -90,6 +90,8 @@ namespace MultiWorldLib
                     _pipeClient.RecieveDataEvent += OnSubServerRecieveData;
                     break;
                 case MWSide.MainServer:
+                    var world = MultiWorldAPI.CreateSubServer<TESTBASEWORLD>("C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\2692ea8a-314f-4ce8-a114-de31f02b1497.wld");
+                    world.Start();
                     On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend += MWNetManager.OnSendBytes;
                     break;
             }
@@ -110,8 +112,8 @@ namespace MultiWorldLib
                     _pipeClient.RecieveDataEvent -= OnSubServerRecieveData;
                     break;
                 case MWSide.MainServer:
-                    MultiWorldAPI.LoadedWorlds.ForEach(w => w.Stop());
-                    MultiWorldAPI.LoadedWorlds.Clear();
+                    MultiWorldAPI._loadedWorlds.ForEach(w => w.Stop());
+                    MultiWorldAPI._loadedWorlds.Clear();
                     On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend -= MWNetManager.OnSendBytes;
                     break;
             }
@@ -241,7 +243,7 @@ namespace MultiWorldLib
         }
         public override bool HijackSendData(int whoAmI, int msgType, int remoteClient, int ignoreClient, NetworkText text, int number, float number2, float number3, float number4, int number5, int number6, int number7)
         {
-            return base.HijackSendData(whoAmI, msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
+            return MWNetManager.OnSendData(whoAmI, msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
         }
         public override void ModifyWorldGenTasks(List<GenPass> tasks, ref float totalWeight)
         {
@@ -258,6 +260,14 @@ namespace MultiWorldLib
                 Environment.Exit(114514);
             }
             base.SaveWorldData(tag);
+        }
+    }
+    public sealed class ModMultiWorldPlayer : ModPlayer
+    {
+        public override void OnEnterWorld(Player player)
+        {
+            Main.Map.Clear();
+            Main.Map.Load();
         }
     }
 }

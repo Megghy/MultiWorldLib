@@ -54,8 +54,8 @@ namespace MultiWorldLib.Commands
             {
                 Task.Run(() =>
                 {
-                    var world = MultiWorldAPI.CreateSubServer<TESTBASEWORLD>("C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\2692ea8a-314f-4ce8-a114-de31f02b1497.wld");
-                    Main.player[0].GetMWPlayer().EnterWorldAsync(world);
+                   
+                    Main.player[0].GetMWPlayer().EnterWorldAsync(MultiWorldAPI.LoadedWorlds.FirstOrDefault());
                 });
             }
         }

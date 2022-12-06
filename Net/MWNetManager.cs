@@ -33,7 +33,8 @@ namespace MultiWorldLib.Net
                             if (string.IsNullOrEmpty(Netplay.ServerPassword))
                             {
                                 Netplay.Clients[playerNumber].State = 1;
-                                _syncModMethod.Invoke(null, new object[] { playerNumber });
+                                //_syncModMethod.Invoke(null, new object[] { playerNumber });
+                                NetMessage.SendData(MessageID.PlayerInfo, playerNumber);
                             }
                             else
                             {
@@ -63,18 +64,43 @@ namespace MultiWorldLib.Net
                 {
                     if (ModMultiWorld.WorldSide is MWSide.SubServer && plr.WorldAdapter is null)
                         plr.WorldAdapter = new MWSubAdapter(plr);
-                    return plr.WorldAdapter?.OnRecieveVanillaPacket(ref messageType, ref reader) ?? false;
+                    if (ModMultiWorld.WorldSide is MWSide.MainServer && plr.State is > PlayerState.InMainServer and < PlayerState.InSubServer &&
+                        !(messageType <= 12
+                        || messageType == MessageID.SocialHandshake
+                        || messageType == MessageID.PlayerLifeMana
+                        || messageType == MessageID.PlayerMana
+                        || messageType == MessageID.PlayerBuffs
+                        || messageType == MessageID.SendPassword
+                        || messageType == MessageID.ClientUUID
+                        || messageType >= 250))
+                    {
+                        return true; //如果正在传送则忽略进服所需要的包
+                    }
+                    else
+                        return plr.WorldAdapter?.OnRecieveVanillaPacket(ref messageType, ref reader) ?? false;
                 }
                 return false;
             }
         }
         internal static void OnSendBytes(On.Terraria.Net.Sockets.TcpSocket.orig_Terraria_Net_Sockets_ISocket_AsyncSend orig, TcpSocket self, byte[] data, int offset, int size, SocketSendCallback callback, object state)
         {
-            if (!(Utils.GetMWPlayer(Netplay.Clients.FirstOrDefault(c => c.Socket == self)?.Id) is { } plr
-                && plr.State > PlayerState.InMainServer)) //如果在其他服忽略所有
+            if (Utils.GetMWPlayer(Netplay.Clients.FirstOrDefault(c => c.Socket == self)?.Id) is { } plr
+                && ((plr._tempAdapter is null && plr.State <= PlayerState.InMainServer)
+                || plr.IsSwitchingBack)) //如果在其他服忽略所有
             {
                 orig(self, data, offset, size, callback, state);
             }
+        }
+        internal static bool OnSendData(int whoAmI, int msgType, int remoteClient, int ignoreClient, NetworkText text, int number, float number2, float number3, float number4, int number5, int number6, int number7)
+        {
+            if (ModMultiWorld.WorldSide is MWSide.LocalHost or MWSide.MainServer)
+            {
+                if (msgType == MessageID.FinishedConnectingToServer && remoteClient != -1)
+                {
+                    MultiWorldAPI.PostSwitchBack(Utils.GetMWPlayer(remoteClient));
+                }
+            }
+            return false;
         }
         internal static void OnRecievePacket(BinaryReader reader, int playerNumber)
         {
@@ -82,11 +108,20 @@ namespace MultiWorldLib.Net
             {
                 var side = ModMultiWorld.WorldSide;
                 var type = (MWPacketTypes)reader.ReadByte();
+
+                MWPlayer plr = Utils.GetMWPlayer(playerNumber);
+
                 switch (type)
                 {
                     case MWPacketTypes.CallEvent:
                         var eventType = (MWEventTypes)reader.ReadByte();
+                        var state = (PlayerState)reader.ReadByte();
                         if (side is MWSide.Client or MWSide.SubServer) //仅由客户端和子世界处理
+                        {
+                            if (plr is not null)
+                            {
+                                plr.State = state;
+                            }
                             switch (eventType)
                             {
                                 case MWEventTypes.PreSwtich:
@@ -97,7 +132,11 @@ namespace MultiWorldLib.Net
                                             $"UniqueId: {(Main.ActiveWorldFileData.UseGuidAsMapName ? Main.ActiveWorldFileData.UniqueId : "[OFF]")}");
                                     if (ModMultiWorld.WorldSide is MWSide.Client)
                                     {
+                                        Main.Map.Save();
+                                        Main.statusText = $"Waiting to join world...";
                                         Netplay.Connection.State = 1;
+                                        Main.gameMenu = true;
+                                        Main.menuMode = 14;
                                     }
                                     break;
                                 case MWEventTypes.PostSwitch:
@@ -105,8 +144,6 @@ namespace MultiWorldLib.Net
                                     //ModMultiWorld.Log.Info($"[{Main.player[playerNumber].name}] Successfully join world: {Main.worldName}");
                                     if (ModMultiWorld.WorldSide is MWSide.Client)
                                     {
-                                        Main.Map.Clear();
-                                        Main.Map.Load();
                                         ModMultiWorld.Log.Debug($"<PostEnter> WorldInfo - " +
                                             $"Name: {Main.worldName}, " +
                                             $"Id: {Main.worldID}, " +
@@ -120,6 +157,7 @@ namespace MultiWorldLib.Net
                                     ModMultiWorld.CurrentWorld?.OnUnload();
                                     break;
                             }
+                        }
                         break;
                     case MWPacketTypes.SetClientWorldClass:
                         var className = reader.ReadString();
@@ -134,12 +172,12 @@ namespace MultiWorldLib.Net
                         }
                         break;
                 }
+                if (ModMultiWorld.WorldSide is MWSide.MainServer && plr is not null && plr.IsInSubWorld)
+                {
+                    plr.WorldAdapter?.SendToBrige(reader.ToBytes(false));
+                }
             }
             catch (Exception ex) { ModMultiWorld.Log.Error(ex); }
-            if (ModMultiWorld.WorldSide is MWSide.MainServer && Utils.GetMWPlayer(playerNumber) is { } plr && plr.IsInSubWorld)
-            {
-                plr.WorldAdapter?.SendToBrige(reader.ToBytes(false));
-            }
         }
 
         private static readonly ConstructorInfo _modPacketConstructor = typeof(ModPacket).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).First();
@@ -202,6 +240,7 @@ namespace MultiWorldLib.Net
 
             var packet = GetMWPacket(MWPacketTypes.CallEvent);
             packet.Write((byte)type);
+            packet.Write((byte)plr.State);
 
             plr.SendPakcetToClientPlayer(packet);
             plr.SendPakcetToBrigePlayer(packet);

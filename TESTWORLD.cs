@@ -26,14 +26,17 @@ namespace MultiWorldLib
             }
         }
     }
-    public class TESTWEAKPLAYER : MWModPlayer
+    public class TESTWEAKPLAYER : MWModModBiome
     {
         public override string[] AttachTo
             => new[] { "MultiWorldLib.TESTBASEWORLD" };
-        public override bool PreHurt(bool pvp, bool quiet, ref int damage, ref int hitDirection, ref bool crit, ref bool customDamage, ref bool playSound, ref bool genGore, ref PlayerDeathReason damageSource, ref int cooldownCounter)
+        public override void SetStaticDefaults()
         {
-            damage = 0;
-            return true;
+            base.SetStaticDefaults();
+        }
+        public override void OnEnter(Player player)
+        {
+            base.OnEnter(player);
         }
     }
 

@@ -27,12 +27,29 @@ namespace MultiWorldLib
     public static class MultiWorldAPI
     {
         public readonly static ConcurrentDictionary<int, MWPlayer> Players = new();
-        public readonly static List<MWContainer> LoadedWorlds = new();
+        public static IReadOnlyList<MWContainer> LoadedWorlds
+            => _loadedWorlds;
+        internal static List<MWContainer> _loadedWorlds = new();
         public readonly static List<MWWorldInfo> WorldData = new();
+
+        public static MWSide WorldSide
+            => ModMultiWorld.Instance._worldSide;
+        public static Guid Id
+            => ModMultiWorld.Instance._id;
+        public static Type? CurrentWorldType
+            => CurrentWorld?.GetType();
+        public static string? CurrentWorldFullName
+            => CurrentWorld?.FullName;
+        public static string? CurrentWorldName
+            => CurrentWorld?.Name;
+        public static BaseMultiWorld? CurrentWorld
+            => ModMultiWorld.Instance._currentWorld;
+        public static bool IsDefaultWorld
+            => CurrentWorld is null;
 
 
         public static string WorldPath
-            => Path.Combine(Main.WorldPath, "MultiWorld");
+            => Path.Combine(Main.WorldPath, "MultiWorlds");
         public async static Task CreateWorld<T>(
             string name,
             string path = null,
@@ -132,7 +149,7 @@ namespace MultiWorldLib
 
             var container = MWContainer.CreateDefault(config, save: save);
             if (addToList)
-                LoadedWorlds.Add(container);
+                _loadedWorlds.Add(container);
             return container;
         }
         public static MWContainer CreateDefaultSubServer(string worldPath, bool addToList = true, bool save = false)
@@ -141,12 +158,7 @@ namespace MultiWorldLib
         {
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
 
-            if (!File.Exists(worldPath))
-                throw new FileNotFoundException(worldPath);
-            var container = MWContainer.CreateDefault(new(name, worldPath), save: save);
-            if (addToList)
-                LoadedWorlds.Add(container);
-            return container;
+            return CreateDefaultSubServer(new MWWorldInfo(name, worldPath), save);
         }
         /// <summary>
         /// Create a subserver, Will not start by default
@@ -162,7 +174,7 @@ namespace MultiWorldLib
 
             var container = MWContainer.Create<T>(config, save: save);
             if (addToList)
-                LoadedWorlds.Add(container);
+                _loadedWorlds.Add(container);
             return container;
         }
         public static MWContainer CreateSubServer<T>(string name, string worldPath, bool addToList = true, bool save = false) where T : BaseMultiWorld
@@ -178,7 +190,7 @@ namespace MultiWorldLib
         /// <returns></returns>
         public static async Task<bool> TryEnterWorldAsync<T>(this MWPlayer plr) where T : BaseMultiWorld
         {
-            if (LoadedWorlds.Find(s => s.WorldClassType == typeof(T)) is { } container)
+            if (LoadedWorlds.FirstOrDefault(s => s.WorldClassType == typeof(T)) is { } container)
             {
                 await plr.EnterWorldAsync(container);
                 return true;
@@ -187,7 +199,7 @@ namespace MultiWorldLib
         }
         public static async Task<bool> EnterWorldAsync<T>(this MWPlayer plr, MWWorldInfo world) where T : BaseMultiWorld
         {
-            if (LoadedWorlds.Find(s => s.WorldClassType == typeof(T)) is { } container)
+            if (LoadedWorlds.FirstOrDefault(s => s.WorldClassType == typeof(T)) is { } container)
             {
                 await plr.EnterWorldAsync(container);
                 return true;
@@ -254,7 +266,6 @@ namespace MultiWorldLib
                     {
                         await adapter.TryConnectAsync();
 
-                        container.Players.Add(plr);
                         PostPlayerEntered(plr, adapter, container);
                     });
             }
@@ -288,6 +299,8 @@ namespace MultiWorldLib
                 return;
             plr.WorldAdapter = adapter;
             plr._tempAdapter = null;
+            plr.World = container;
+            container.Players.Add(plr);
 
             ModMultiWorld.Log.Info($"[{plr.Player.name}] Joined world: {container.WorldConfig.Name}");
             MultiWorldHooks.OnPostSwitch(plr, container, out _);
@@ -308,6 +321,7 @@ namespace MultiWorldLib
         {
             if (plr is null)
                 throw new ArgumentNullException(nameof(plr));
+            ThrowHelper.CheckSide(MWSide.SubServer | MWSide.Client);
             switch (ModMultiWorld.WorldSide)
             {
                 case MWSide.Client:
@@ -322,28 +336,21 @@ namespace MultiWorldLib
                             .GetByteData());
                     return;
             }
+            if(plr.State is PlayerState.InMainServer)
+            {
+                ModMultiWorld.Log.Debug($"[{plr}] already in main world.");
+                return;
+            }
             if (ModMultiWorld.WorldSide is MWSide.MainServer or MWSide.LocalHost)
             {
                 ModMultiWorld.Log.Info($"Send player [{plr.Player.name}] back to main world.");
                 try
                 {
-                    MultiWorldHooks.OnPlayerBackToHost(plr, out _);
-                    MWNetManager.OnCallEvent(MWEventTypes.PreSwtich, plr);
-                    var setClassPacket = MWNetManager.GetMWPacket(MWPacketTypes.SetClientWorldClass);
-                    setClassPacket.Write("");
-                    plr.SendPakcetToClientPlayer(setClassPacket);
+                    PreSwitchBack(plr, keepInventory);
 
-                    plr._subPlayerInfo = null;
-                    plr.State = PlayerState.Switching;
-                    plr.IsSwitchingBack = true;
-                    plr.IgnoreSyncInventoryPacket = !keepInventory;
-                    var oldPos = plr.Player.position;
-
-                    plr.WorldAdapter?.Dispose();
-                    plr.WorldAdapter = null;
-
-                    //MWNetManager._syncModMethod.Invoke(null, new object[] { plr.Index });
-                    NetMessage.SendData(MessageID.PlayerInfo, plr.WhoAmI, -1, null, 0);
+                    Netplay.Clients[plr.WhoAmI].State = 1;
+                    //MWNetManager._syncModMethod.Invoke(null, new object[] { plr.WhoAmI });
+                    NetMessage.SendData(MessageID.PlayerInfo, plr.WhoAmI);
 
                     if (ModMultiWorld.WorldSide is MWSide.LocalHost)
                     {
@@ -355,9 +362,6 @@ namespace MultiWorldLib
                         }
                         catch { }
                     }
-
-                    plr.IsSwitchingBack = false;
-                    plr.IgnoreSyncInventoryPacket = false;
                 }
                 catch (Exception ex)
                 {
@@ -365,14 +369,43 @@ namespace MultiWorldLib
                 }
             }
         }
+        internal static void PreSwitchBack(MWPlayer plr, bool keepInv)
+        {
+            MultiWorldHooks.OnPlayerBackToHost(plr, out _);
+            MultiWorldHooks.OnPreSwitch(plr, null, out _);
+            MWNetManager.OnCallEvent(MWEventTypes.PreSwtich, plr);
+            var setClassPacket = MWNetManager.GetMWPacket(MWPacketTypes.SetClientWorldClass);
+            setClassPacket.Write("");
+            plr.SendPakcetToClientPlayer(setClassPacket);
 
+            plr.World?.Players.Remove(plr);
+
+            plr._subPlayerInfo = null;
+            plr.State = PlayerState.Switching;
+            plr.IsSwitchingBack = true;
+            plr.IgnoreSyncInventoryPacket = !keepInv;
+            var oldPos = plr.Player.position;
+
+            plr.WorldAdapter?.Dispose();
+            plr.WorldAdapter = null;
+            plr.World = null;
+        }
+        internal static void PostSwitchBack(MWPlayer plr)
+        {
+            MultiWorldHooks.OnPostSwitch(plr, null, out _);
+            MWNetManager.OnCallEvent(MWEventTypes.PostSwitch, plr);
+            plr.IsSwitchingBack = false;
+            plr.IgnoreSyncInventoryPacket = false;
+            plr.State = PlayerState.InMainServer;
+            ModMultiWorld.Log.Info($"[{plr.Name} Back to main world.]");
+        }
         #region Find
 
         public static bool TryFindFirstWorldByT<T>(out MWContainer container)
         {
             container = null;
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
-            if (LoadedWorlds.Find(s => s.WorldClassType == typeof(T)) is { } result)
+            if (LoadedWorlds.FirstOrDefault(s => s.WorldClassType == typeof(T)) is { } result)
             {
                 container = result;
                 return true;
@@ -383,7 +416,7 @@ namespace MultiWorldLib
         {
             container = null;
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
-            if (LoadedWorlds.Find(s => s.Id == id) is { } result)
+            if (LoadedWorlds.FirstOrDefault(s => s.Id == id) is { } result)
             {
                 container = result;
                 return true;
@@ -394,7 +427,7 @@ namespace MultiWorldLib
         {
             container = null;
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
-            if (LoadedWorlds.Find(s => s.WorldConfig.Name == name || s.WorldConfig.Alias == name) is { } result)
+            if (LoadedWorlds.FirstOrDefault(s => s.WorldConfig.Name == name || s.WorldConfig.Alias == name) is { } result)
             {
                 container = result;
                 return true;

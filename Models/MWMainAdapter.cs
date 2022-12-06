@@ -74,7 +74,7 @@ namespace MultiWorldLib.Models
                             }))
                             .PackString(JsonSerializer.Serialize(World?.WorldConfig?.Settings))
                             .GetByteData()); //发起连接请求
-            while (!_isEntered)
+            while (!_isEntered && _isRunning)
             {
                 cancel.ThrowIfCancellationRequested();
                 Thread.Sleep(1);
@@ -111,7 +111,7 @@ namespace MultiWorldLib.Models
                 || messageType == MessageID.PlayerBuffs
                 || messageType == MessageID.SendPassword
                 || messageType == MessageID.ClientUUID
-                || messageType >= 250)
+                || messageType >= 249)
                 {
                     _tcpClient.GetStream().Write(data);
                 }

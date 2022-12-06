@@ -20,6 +20,7 @@ namespace MultiWorldLib.Entities
             internal set => _worldAdapter = value;
         }
         internal IMWAdapter _tempAdapter;
+        public MWContainer? World { get; internal set; }
         public PlayerState State { get; internal set; } = PlayerState.NewConnection;
         public IMWPlayerInfo Info
         {
