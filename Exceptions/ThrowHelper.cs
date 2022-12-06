@@ -11,7 +11,7 @@ namespace MultiWorldLib.Exceptions
         /// <exception cref="WrongSideException"></exception>
         public static void CheckSide(MWSide allowSide)
         {
-            if(!allowSide.HasFlag(ModMultiWorld.WorldSide))
+            if (!allowSide.HasFlag(ModMultiWorld.WorldSide))
                 throw new WrongSideException(allowSide);
         }
     }

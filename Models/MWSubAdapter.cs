@@ -1,16 +1,10 @@
 ﻿using System;
 using System.IO;
-using System.Reflection;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
-using MultiWorldLib.Net;
 using Terraria;
-using Terraria.ID;
-using Terraria.Localization;
-using Terraria.ModLoader;
 
 namespace MultiWorldLib.Models
 {

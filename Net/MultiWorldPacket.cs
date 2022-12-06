@@ -1,13 +1,6 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.CompilerServices;
-using System.Text;
-using Microsoft.Xna.Framework;
-using MultiWorldLib.Entities;
-using MultiWorldLib.Modules;
 using Terraria.Localization;
-using Terraria.ModLoader;
-using XPT.Core.Audio.MP3Sharp.Decoding;
 
 namespace MultiWorldLib.Net
 {

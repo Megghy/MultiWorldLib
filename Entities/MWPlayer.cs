@@ -14,9 +14,9 @@ namespace MultiWorldLib.Entities
         public override string ToString()
             => $"{Player?.name} :{State}";
         private IMWAdapter _worldAdapter;
-        public IMWAdapter? WorldAdapter 
+        public IMWAdapter? WorldAdapter
         {
-            get => _tempAdapter ?? _worldAdapter; 
+            get => _tempAdapter ?? _worldAdapter;
             internal set => _worldAdapter = value;
         }
         internal IMWAdapter _tempAdapter;

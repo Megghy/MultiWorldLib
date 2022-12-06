@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Text.Json.Serialization;
-using MultiWorldLib.Entities;
 using Terraria.IO;
 
 namespace MultiWorldLib.Entities

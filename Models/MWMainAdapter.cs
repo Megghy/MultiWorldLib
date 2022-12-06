@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -11,7 +10,6 @@ using Microsoft.Xna.Framework;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Interfaces;
 using MultiWorldLib.Modules;
-using MultiWorldLib.Net;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;

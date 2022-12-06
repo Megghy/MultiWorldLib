@@ -1,5 +1,4 @@
-﻿using System;
-using MultiWorldLib.Entities;
+﻿using MultiWorldLib.Entities;
 using Terraria.ModLoader;
 
 namespace MultiWorldLib.ModTypes

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,7 +23,7 @@ namespace MultiWorldLib.Commands
         /// <summary>
         /// TODO
         /// </summary>
-        public static Func<string, bool> CheckPerm 
+        public static Func<string, bool> CheckPerm
             => perm => true;
 
         public override void Action(CommandCaller caller, string input, string[] args)
@@ -54,7 +53,7 @@ namespace MultiWorldLib.Commands
             {
                 Task.Run(() =>
                 {
-                   
+
                     Main.player[0].GetMWPlayer().EnterWorldAsync(MultiWorldAPI.LoadedWorlds.FirstOrDefault());
                 });
             }

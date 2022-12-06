@@ -1,15 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MultiWorldLib.Entities;
-using Terraria;
-using Terraria.Localization;
-using Terraria.ID;
-using Terraria.Net;
-
-namespace MultiWorldLib.Modules
+﻿namespace MultiWorldLib.Modules
 {
     public static class PlayerHelper
     {

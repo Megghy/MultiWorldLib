@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using MultiWorldLib.Entities;
-using MultiWorldLib.Interfaces;
 using Terraria.ModLoader;
 using Terraria.WorldBuilding;
 using static MultiWorldLib.MultiWorldHooks;

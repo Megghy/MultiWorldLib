@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Mono.Cecil.Cil;
 using MultiWorldLib.Entities;
 using Terraria;
 using Terraria.ModLoader;
@@ -25,7 +24,7 @@ namespace MultiWorldLib
             foreach (var loader in loaders)
             {
                 //只检查泛型loader的情况
-                if(loader.Key.BaseType?.GenericTypeArguments?.FirstOrDefault() is { } loaderType)
+                if (loader.Key.BaseType?.GenericTypeArguments?.FirstOrDefault() is { } loaderType)
                 {
                     var loadedList = loader.Key.GetField("list", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(loader.Value) as List<dynamic>; //获取Loader<T>中储存的content
                     world.Content.Where(c => loaderType.IsAssignableFrom(c.Key))
@@ -52,7 +51,7 @@ namespace MultiWorldLib
                                 {
                                     value.Remove(name);
                                 }
-                                loadedList.Remove(instance); 
+                                loadedList.Remove(instance);
                             }
                         });
                 }
@@ -80,11 +79,11 @@ namespace MultiWorldLib
                 tempSystemsField.SetValue(hookList, tempSystems.Where(t => !world.Content.ContainsKey(t.GetType())).ToArray());
             }
             //ModBiome
-            var biomeSetupMethod = typeof(BiomeLoader).GetMethod("SetupPlayer" , BindingFlags.Instance | BindingFlags.NonPublic);
+            var biomeSetupMethod = typeof(BiomeLoader).GetMethod("SetupPlayer", BindingFlags.Instance | BindingFlags.NonPublic);
             var biome = LoaderManager.Get<BiomeLoader>();
             foreach (var plr in Main.player)
             {
-                if(plr != null)
+                if (plr != null)
                 {
                     biomeSetupMethod.Invoke(biome, new object[] { plr }); //重设环境数组
                 }
@@ -139,7 +138,7 @@ namespace MultiWorldLib
                         UnloadWorld(world);
                         return;
                     }
-                    if(Instance._currentWorld is not null)
+                    if (Instance._currentWorld is not null)
                     {
                         UnloadWorld(Instance._currentWorld);
                     }

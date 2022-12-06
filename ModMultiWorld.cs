@@ -92,11 +92,11 @@ namespace MultiWorldLib
                 case MWSide.MainServer:
                     var world = MultiWorldAPI.CreateSubServer<TESTBASEWORLD>("C:\\Users\\MegghyUwU\\Documents\\My Games\\Terraria\\tModLoader\\Worlds\\2692ea8a-314f-4ce8-a114-de31f02b1497.wld");
                     world.Start();
-                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend += MWNetManager.OnSendBytes;
+                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend += MultiWorldNetManager.OnSendBytes;
                     break;
             }
 
-            Log.Info($"Loaded {MWConfig.Instance.Worlds.Count} world(s).");
+            Log.Info($"Loaded {MultiWorldConfig.Instance.Worlds.Count} world(s).");
             base.Load();
         }
         public override void Unload()
@@ -114,7 +114,7 @@ namespace MultiWorldLib
                 case MWSide.MainServer:
                     MultiWorldAPI._loadedWorlds.ForEach(w => w.Stop());
                     MultiWorldAPI._loadedWorlds.Clear();
-                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend -= MWNetManager.OnSendBytes;
+                    On.Terraria.Net.Sockets.TcpSocket.Terraria_Net_Sockets_ISocket_AsyncSend -= MultiWorldNetManager.OnSendBytes;
                     break;
             }
 
@@ -122,7 +122,7 @@ namespace MultiWorldLib
         }
         private void OnSubServerRecieveData(int length, byte[] data)
         {
-            MWNetManager.OnRecieveData(Id, length, data);
+            MultiWorldNetManager.OnRecieveData(Id, length, data);
         }
         private void FindMultiWorldTypes()
         {
@@ -232,18 +232,18 @@ namespace MultiWorldLib
         }
         public override void HandlePacket(BinaryReader reader, int whoAmI)
         {
-            MWNetManager.OnRecievePacket(reader, whoAmI);
+            MultiWorldNetManager.OnRecievePacket(reader, whoAmI);
         }
     }
     public class ModMultiWorldSystem : ModSystem
     {
         public override bool HijackGetData(ref byte messageType, ref BinaryReader reader, int playerNumber)
         {
-            return MWNetManager.OnRecieveVanillaPacket(ref messageType, ref reader, playerNumber);
+            return MultiWorldNetManager.OnRecieveVanillaPacket(ref messageType, ref reader, playerNumber);
         }
         public override bool HijackSendData(int whoAmI, int msgType, int remoteClient, int ignoreClient, NetworkText text, int number, float number2, float number3, float number4, int number5, int number6, int number7)
         {
-            return MWNetManager.OnSendData(whoAmI, msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
+            return MultiWorldNetManager.OnSendData(whoAmI, msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
         }
         public override void ModifyWorldGenTasks(List<GenPass> tasks, ref float totalWeight)
         {

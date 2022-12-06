@@ -1,5 +1,4 @@
-﻿using Microsoft.Xna.Framework;
-using MultiWorldLib.Interfaces;
+﻿using MultiWorldLib.Interfaces;
 
 namespace MultiWorldLib.Entities
 {

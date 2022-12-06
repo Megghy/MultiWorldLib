@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MultiWorldLib.Entities;
-using MultiWorldLib.Models;
 
 namespace MultiWorldLib.Interfaces
 {

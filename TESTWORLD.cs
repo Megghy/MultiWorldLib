@@ -1,7 +1,6 @@
 ﻿using MultiWorldLib.Entities;
 using MultiWorldLib.ModTypes;
 using Terraria;
-using Terraria.DataStructures;
 
 namespace MultiWorldLib
 {

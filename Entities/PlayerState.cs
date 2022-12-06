@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MultiWorldLib.Entities
+﻿namespace MultiWorldLib.Entities
 {
     public enum PlayerState
     {
@@ -12,7 +6,7 @@ namespace MultiWorldLib.Entities
         NewConnection,
         InMainServer,
         Switching,
-        RequirePassword, 
+        RequirePassword,
         SyncData,
         InSubServer,
     }

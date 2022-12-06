@@ -1,26 +1,19 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Exceptions;
 using MultiWorldLib.Models;
 using MultiWorldLib.Modules;
 using MultiWorldLib.Net;
 using Terraria;
-using Terraria.GameContent;
-using Terraria.GameContent.Creative;
 using Terraria.ID;
-using Terraria.Localization;
-using Terraria.Map;
-using Terraria.ModLoader;
 
 namespace MultiWorldLib
 {
@@ -336,7 +329,7 @@ namespace MultiWorldLib
                             .GetByteData());
                     return;
             }
-            if(plr.State is PlayerState.InMainServer)
+            if (plr.State is PlayerState.InMainServer)
             {
                 ModMultiWorld.Log.Debug($"[{plr}] already in main world.");
                 return;
