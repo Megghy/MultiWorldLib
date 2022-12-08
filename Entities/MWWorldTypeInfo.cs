@@ -4,5 +4,5 @@ using Terraria.ModLoader;
 
 namespace MultiWorldLib.Entities
 {
-    public record MWWorldTypeInfo(Type WorldType, Mod ParentMod, List<Type> ModContents);
+    public record MWWorldTypeInfo(Type WorldType, Mod ParentMod, Dictionary<Type, string[]> ModContents);
 }

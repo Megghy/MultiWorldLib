@@ -7,6 +7,11 @@ namespace MultiWorldLib.Entities
 {
     public record MWWorldInfo
     {
+        public static readonly MWWorldInfo Default = new()
+        {
+            LoadClass = ModMultiWorld.DEFAULT_WORLD_NAME,
+            Name = ModMultiWorld.DEFAULT_WORLD_NAME,
+        };
         public MWWorldInfo(string name, string path)
         {
             Name = name;
@@ -17,6 +22,10 @@ namespace MultiWorldLib.Entities
             WorldFilePath = path;
             Id = Guid.NewGuid();
             Data = GetData();
+        }
+        public MWWorldInfo()
+        {
+            Id = Guid.Empty;
         }
 
         public MWWorldInfo GetDataAndClone()
@@ -31,9 +40,8 @@ namespace MultiWorldLib.Entities
         public string Color = "B6E0DF";
         public bool Visiable = true;
         public string LoadClass = "";
+        public bool AutoLoad = false;
 
-        public int SpawnX = -1;
-        public int SpawnY = -1;
         public int MaxPlayer = 200;
 
         public MWWorldSetting Settings = new();

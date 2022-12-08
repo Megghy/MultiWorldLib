@@ -28,7 +28,7 @@ namespace MultiWorldLib
 
         public static MWSide CurrentSide
             => ModMultiWorld.WorldSide;
-        public abstract ActiveSide ActiveSide { get; }
+        public virtual ActiveSide ActiveSide { get; } = ActiveSide.Both;
         public abstract string Name { get; }
 
         public abstract void OnLoad();
@@ -42,10 +42,6 @@ namespace MultiWorldLib
 
         }
         public virtual void OnLeave(int playerNumber)
-        {
-
-        }
-        public virtual void OnWorldGen(List<GenPass> tasks, ref float totalWeight)
         {
 
         }

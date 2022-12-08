@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using MultiWorldLib.Entities;
 using MultiWorldLib.Exceptions;
 using MultiWorldLib.Net;
@@ -10,7 +12,7 @@ using Terraria;
 
 namespace MultiWorldLib.Models
 {
-    public class MWContainer : IDisposable
+    public class MultiWorldContainer : IDisposable
     {
         /// <summary>
         /// 
@@ -19,20 +21,23 @@ namespace MultiWorldLib.Models
         /// <param name="config"></param>
         /// <param name="params">Should include '-'</param>
         /// <returns></returns>
-        public static MWContainer Create<T>(MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null) where T : BaseMultiWorld
+        public static MultiWorldContainer Create<T>(MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null) where T : BaseMultiWorld
             => new(typeof(T), config, port, save, @params);
-        public static MWContainer CreateDefault(MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null)
+        public static MultiWorldContainer CreateDefault(MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null)
             => new(null, config, port, save, @params);
-        internal MWContainer(Type type, MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null)
+        internal MultiWorldContainer(Type type, MWWorldInfo config, int? port = null, bool save = true, Dictionary<string, string> @params = null)
         {
             ThrowHelper.CheckSide(MWSide.MainServer | MWSide.LocalHost);
+            if (!type.IsAssignableTo(typeof(BaseMultiWorld)))
+                throw new ArgumentOutOfRangeException(nameof(type));
 
             port ??= Utils.GetRandomPort();
 
             WorldClassType = type;
-            Id = Guid.NewGuid();
             StartupParams = @params;
             Port = port.Value;
+            config.LoadClass = type?.FullName;
+            WorldInfo = config;
 
             _process = new()
             {
@@ -44,8 +49,7 @@ namespace MultiWorldLib.Models
                         $"-world \"{config.WorldFilePath}\" " +
                         $"-port {port.Value} " +
                         $"{ModMultiWorld.PARAM_IS_SUBSERVER} " +
-                        $"{ModMultiWorld.PARAM_ID} \"{Id}\" " +
-                        $"{ModMultiWorld.PARAM_CLASSNAME} {type?.FullName} ",
+                        $"{ModMultiWorld.PARAM_WORLDINFO} \"{Convert.ToBase64String(Encoding.UTF8.GetBytes(config.SerializeJson()))}\" ",
                     //CreateNoWindow = true,
                 }
             };
@@ -60,30 +64,28 @@ namespace MultiWorldLib.Models
             _pipeline = new($"{ModMultiWorld.PIPE_PREFIX}.{Id}");
             _pipeline.RecieveDataEvent += RecieveCustomDataInternal;
 
-            config.LoadClass = type?.FullName;
             if (save)
             {
-                MWConfig.Instance.Worlds.RemoveAll(w => w.Id == config.Id);
-                MWConfig.Instance.Worlds.Add(config);
-                MWConfig.Instance.Save();
+                MultiWorldConfig.Instance.Worlds.RemoveAll(w => w.Id == config.Id);
+                MultiWorldConfig.Instance.Worlds.Add(config);
+                MultiWorldConfig.Instance.Save();
             }
-
-            WorldConfig = config;
         }
 
         private void RecieveCustomDataInternal(int length, byte[] data)
         {
-            MWNetManager.OnRecieveData(Id, length, data);
+            MultiWorldNetManager.OnRecieveData(Id, length, data);
         }
 
         private readonly Process _process;
         private readonly SimplePipeServer _pipeline;
 
-        public Guid Id { get; init; }
+        public Guid Id
+            => WorldInfo.Id;
         public int Port { get; init; }
         public bool IsRunning { get; private set; } = false;
         public List<MWPlayer> Players { get; private set; } = new();
-        public MWWorldInfo WorldConfig { get; internal set; }
+        public MWWorldInfo WorldInfo { get; internal set; }
         public Type? WorldClassType { get; init; }
         public IReadOnlyDictionary<string, string> StartupParams { get; init; }
 

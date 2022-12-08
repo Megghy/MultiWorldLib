@@ -24,7 +24,7 @@ namespace MultiWorldLib.Net
         /// </summary>
         public void Send()
         {
-            MWNetManager.SendCustomDataToBridge(this);
+            MultiWorldNetManager.SendCustomDataToBridge(this);
         }
 
         internal void Finish()

@@ -20,7 +20,7 @@ namespace MultiWorldLib.Models
     public class MWMainAdapter : IMWAdapter
     {
         private readonly static FieldInfo _clientConnection = typeof(TcpSocket).GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic);
-        public MWMainAdapter(MWPlayer plr, MWContainer container)
+        public MWMainAdapter(MWPlayer plr, MultiWorldContainer container)
         {
             World = container;
             _tcpClient = new TcpClient();
@@ -31,7 +31,7 @@ namespace MultiWorldLib.Models
         private bool _isEntered = false;
 
         public MWPlayer Player { get; init; }
-        public MWContainer World { get; init; }
+        public MultiWorldContainer World { get; init; }
         internal TcpClient _tcpClient { get; init; }
         internal TcpClient _vanillaTcpClient { get; private set; }
 
@@ -70,7 +70,7 @@ namespace MultiWorldLib.Models
                                 SubServerId = World.Id,
                                 IP = Netplay.Clients[Player?.WhoAmI ?? 255]?.Socket.GetRemoteAddress().ToString() ?? "127.0.0.1"
                             }))
-                            .PackString(JsonSerializer.Serialize(World?.WorldConfig?.Settings))
+                            .PackString(JsonSerializer.Serialize(World?.WorldInfo?.Settings))
                             .GetByteData()); //发起连接请求
             while (!_isEntered && _isRunning)
             {
@@ -122,7 +122,14 @@ namespace MultiWorldLib.Models
         }
         public void SendToClient(Span<byte> data)
         {
-            _vanillaTcpClient?.GetStream()?.Write(data);
+            if (_vanillaTcpClient?.Connected == true)
+            {
+                _vanillaTcpClient?.GetStream()?.Write(data);
+            }
+            else
+            {
+                Dispose();
+            }
         }
         public void SendToClient(byte[] data)
         {

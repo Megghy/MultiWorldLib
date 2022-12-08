@@ -14,7 +14,7 @@ using Terraria.Net.Sockets;
 
 namespace MultiWorldLib.Net
 {
-    public static class MWNetManager
+    public static class MultiWorldNetManager
     {
         internal readonly static MethodInfo _syncModMethod = typeof(ModNet).GetMethod("SyncMods", BindingFlags.Static | BindingFlags.NonPublic);
         internal static bool OnRecieveVanillaPacket(ref byte messageType, ref BinaryReader reader, int playerNumber)
@@ -160,15 +160,24 @@ namespace MultiWorldLib.Net
                         }
                         break;
                     case MWPacketTypes.SetClientWorldClass:
-                        var className = reader.ReadString();
+                        var worldSettingString = reader.ReadString();
                         if (ModMultiWorld.WorldSide is MWSide.Client)
                         {
-                            //WorldGen.clearWorld();
-                            MultiWorldManager.ActiveWorld(className);
-                            ModMultiWorld.Log.Debug($"WorldReset - " +
-                                $"Name: {Main.worldName}, " +
-                                $"Id: {Main.worldID}, " +
-                                $"UniqueId: {(Main.ActiveWorldFileData.UseGuidAsMapName ? Main.ActiveWorldFileData.UniqueId : "[OFF]")}");
+                            if (Utils.TryDeserializeJson<MWWorldInfo>(worldSettingString, out var info))
+                            {
+                                MultiWorldManager.ActiveWorld(info.LoadClass);
+
+                                ModMultiWorld.Instance._worldInfo = info;
+                                ModMultiWorld.Log.Debug($"WorldReset - " +
+                               $"Name: {Main.worldName}, " +
+                               $"Id: {Main.worldID}, " +
+                               $"UniqueId: {(Main.ActiveWorldFileData.UseGuidAsMapName ? Main.ActiveWorldFileData.UniqueId : "[OFF]")}");
+                            }
+                            else
+                            {
+                                ModMultiWorld.Instance._worldInfo = MWWorldInfo.Default;
+                                MultiWorldManager.ActiveWorld(null);
+                            }
                         }
                         break;
                 }

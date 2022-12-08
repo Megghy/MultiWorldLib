@@ -2,6 +2,7 @@
 {
     public enum MWCustomTypes
     {
-        RequestBackToMainServer
+        RequestBackToMainServer,
+        RequestJoin
     }
 }

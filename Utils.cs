@@ -4,9 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Text.Json;
 using MultiWorldLib.Entities;
+using Newtonsoft.Json;
 using Terraria;
 using Terraria.ModLoader;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace MultiWorldLib
 {
@@ -89,6 +92,37 @@ namespace MultiWorldLib
         public static FieldInfo GetField<T>(string name, BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public)
         {
             return typeof(T).GetField(name, flags);
+        }
+        public static string SerializeJson(this object obj)
+        {
+            try
+            {
+                return JsonConvert.SerializeObject(obj);
+            }
+            catch { return null; }
+        }
+        public static bool TryDeserializeJson<T>(this string text, out T result)
+        {
+            if (!string.IsNullOrEmpty(text))
+                try
+                {
+                    result = JsonConvert.DeserializeObject<T>(text);
+                    return true;
+                }
+                catch { }
+            result = default;
+            return false;
+        }
+        public static Dictionary<string, object> AsDictionary(this object source, BindingFlags bindingAttr = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance)
+            => AsDynamicDictionary(source, bindingAttr);
+        public static Dictionary<string, dynamic> AsDynamicDictionary(this object source, BindingFlags bindingAttr = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance)
+        {
+            return source.GetType().GetProperties(bindingAttr).ToDictionary
+            (
+                propInfo => propInfo.Name,
+                propInfo => propInfo.GetValue(source, null)
+            );
+
         }
     }
 }

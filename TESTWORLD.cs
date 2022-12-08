@@ -25,23 +25,25 @@ namespace MultiWorldLib
             }
         }
     }
-    public class TESTWEAKPLAYER : MWModModBiome
-    {
-        public override string[] AttachTo
-            => new[] { "MultiWorldLib.TESTBASEWORLD" };
-        public override void SetStaticDefaults()
-        {
-            base.SetStaticDefaults();
-        }
-        public override void OnEnter(Player player)
-        {
-            base.OnEnter(player);
-        }
-    }
-
-    internal class TESTWORLD : MWModSystem<TESTBASEWORLD>
+    internal class TESTWORLD : MultiWorldModSystem<TESTBASEWORLD>
     {
         public int tick = 0;
+        public override void PostUpdateEverything()
+        {
+            if (!Main.dedServ && tick % 100 == 0) //local
+            {
+                Main.NewText(tick);
+                tick++;
+            }
+        }
+    }
+    public class TESTWORLD2 : MultiWorldModSystem
+    {
+        public int tick = 0;
+
+        public override string[] AttachTo
+            => new[] { "ExampleMod.Abc.DefWorld", "*" }; 
+
         public override void PostUpdateEverything()
         {
             if (!Main.dedServ && tick % 100 == 0) //local

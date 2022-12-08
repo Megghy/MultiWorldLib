@@ -26,14 +26,14 @@ namespace MultiWorldLib
         }
         public class SwitchEventArgs : IMWEventArgs
         {
-            public SwitchEventArgs(MWPlayer player, MWContainer targetServer, bool isPreSwitch)
+            public SwitchEventArgs(MWPlayer player, MultiWorldContainer targetServer, bool isPreSwitch)
             {
                 Player = player;
                 TargetServer = targetServer;
                 PreSwitch = isPreSwitch;
             }
             public MWPlayer Player { get; private set; }
-            public MWContainer TargetServer { get; private set; }
+            public MultiWorldContainer TargetServer { get; private set; }
             public bool PreSwitch { get; }
             public bool Handled { get; set; } = false;
         }
@@ -93,7 +93,7 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        internal static bool OnPreSwitch(MWPlayer player, MWContainer targetWorld, out SwitchEventArgs args)
+        internal static bool OnPreSwitch(MWPlayer player, MultiWorldContainer targetWorld, out SwitchEventArgs args)
         {
             args = new(player, targetWorld, true);
             try
@@ -106,7 +106,7 @@ namespace MultiWorldLib
             }
             return args.Handled;
         }
-        internal static bool OnPostSwitch(MWPlayer player, MWContainer targetWorld, out SwitchEventArgs args)
+        internal static bool OnPostSwitch(MWPlayer player, MultiWorldContainer targetWorld, out SwitchEventArgs args)
         {
             args = new(player, targetWorld, false);
             try
